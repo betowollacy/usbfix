@@ -30,6 +30,13 @@ if [ -f "$PROJECT_DIR/client/dist/Instalar USB FIX.exe" ]; then
         "/opt/tunnel/server/site/downloads/Instalar USB FIX.exe"
 fi
 
+if [ -f "$PROJECT_DIR/client/dist/USB-Fix.exe" ]; then
+    echo "==> Publicando executável USB FIX..."
+    mkdir -p /opt/tunnel/server/site/downloads
+    cp "$PROJECT_DIR/client/dist/USB-Fix.exe" \
+        "/opt/tunnel/server/site/downloads/USB-Fix.exe"
+fi
+
 echo "==> venv + dependências da API..."
 python3 -m venv /opt/tunnel/venv
 /opt/tunnel/venv/bin/pip install -q --upgrade pip

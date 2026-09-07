@@ -280,7 +280,7 @@ def downloads(authorization: Optional[str] = Header(None)):
     usb_client = db.get_setting("dl.usb.client.url", "")
     usb_server = db.get_setting("dl.usb.server.url", "")
     result = {
-        "app": {"version": "0.5.0", "name": "USB FIX", "url": app_url},
+        "app": {"version": config.APP_VERSION, "name": "USB FIX", "url": app_url},
         "usbRedirector": {
             "client": {"name": "USB Redirector (Cliente)", "url": usb_client},
             "server": {"name": "USB Redirector (Servidor)", "url": usb_server},

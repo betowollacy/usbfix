@@ -311,6 +311,7 @@ class App(ctk.CTk):
         inner = ctk.CTkFrame(card, fg_color=PANEL, corner_radius=0)
         inner.pack(fill="both", expand=True, padx=24, pady=24)
 
+        self._logo_pack(inner).pack(pady=(0, 12))
         ctk.CTkLabel(inner, text="Entrar", text_color=TEXT, font=self._font_h1,
                      anchor="w").pack(fill="x")
         ctk.CTkLabel(inner, text="Acesse sua conta para conectar seus dispositivos", text_color=MUTED,
