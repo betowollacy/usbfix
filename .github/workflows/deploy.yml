@@ -90,6 +90,10 @@ jobs:
             "${VPS_USER}@${VPS_HOST}:${VPS_PROJECT_DIR}/client/dist/USB-Fix.exe"
           scp 'client/dist/Instalar USB FIX.exe' \
             "${VPS_USER}@${VPS_HOST}:${VPS_PROJECT_DIR}/client/dist/Instalar USB FIX.exe"
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PROJECT_DIR: ${{ secrets.VPS_PROJECT_DIR }}
 
       - name: Run VPS deploy
         shell: bash
