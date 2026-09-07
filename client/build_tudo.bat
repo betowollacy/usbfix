@@ -2,13 +2,19 @@
 setlocal
 cd /d "%~dp0"
 
+if not exist "frpc.exe" (
+	echo === Baixando frp ===
+	python download_frp.py
+	if errorlevel 1 goto :erro
+)
+
 echo === Rebuild USB-Fix.exe ===
 python -m PyInstaller --noconfirm --clean USB-Fix.spec
 if errorlevel 1 goto :erro
 
 echo.
 echo === Build instalador ===
-python -m PyInstaller --noconfirm --clean --onefile --windowed --name "Instalar USB FIX" --icon USB-Fix.ico instalar.py
+python -m PyInstaller --noconfirm --clean --onefile --windowed --name "Instalar USB FIX" --icon USB-Fix.ico --add-binary "dist\USB-Fix.exe;." --add-data "USB-Fix.ico;." instalar.py
 if errorlevel 1 goto :erro
 
 echo.

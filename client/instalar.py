@@ -67,16 +67,21 @@ def register_uninstall(app_dir):
 def main():
     try:
         src = Path(sys.executable).resolve().parent
+        bundled_dir = Path(getattr(sys, "_MEIPASS", src))
         app_dir = Path(os.environ["LOCALAPPDATA"]) / "Programs" / APP_DIR_NAME
         app_dir.mkdir(parents=True, exist_ok=True)
 
-        exe_src = src / EXE_NAME
+        exe_src = bundled_dir / EXE_NAME
+        if not exe_src.exists():
+            exe_src = src / EXE_NAME
         if not exe_src.exists():
             msgbox("Arquivo ausente na pasta de instalação: " + EXE_NAME, icon=MB_ICONERROR)
             return 1
         shutil.copyfile(exe_src, app_dir / EXE_NAME)
 
-        ico_src = src / ICON_NAME
+        ico_src = bundled_dir / ICON_NAME
+        if not ico_src.exists():
+            ico_src = src / ICON_NAME
         if ico_src.exists():
             shutil.copyfile(ico_src, app_dir / ICON_NAME)
             shortcut_icon = str(app_dir / ICON_NAME) + ",0"
