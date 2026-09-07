@@ -549,6 +549,13 @@ class App(ctk.CTk):
         digits = "".join(c for c in value if c.isdigit())
         return int(digits) if digits else 32038
 
+    def _endpoint_value(self):
+        if not self.user:
+            return ""
+        endpoint = str(self.user.get("endpoint") or "").lstrip("✓✔☑ ")
+        port = self.user.get("port")
+        return f"{endpoint}:{port}" if endpoint and port else ""
+
     def _local_port_is_open(self, port):
         try:
             with socket.create_connection(("127.0.0.1", port), timeout=1):
@@ -569,7 +576,7 @@ class App(ctk.CTk):
         self.user = data["user"]
         u = self.user
         domain = u["endpoint"].split(".", 1)[-1] if u.get("endpoint") else ""
-        self.endpoint_lbl.configure(text=f"{u['endpoint']}:{u['port']}" if u.get("endpoint") else "—:—")
+        self.endpoint_lbl.configure(text=self._endpoint_value() or "—:—")
         self.key_lbl.configure(text=f"Conta: {u.get('email') or u['username']}")
         self.sub_inp.delete(0, "end")
         self.sub_inp.insert(0, u["subdomain"] or "")
@@ -605,9 +612,7 @@ class App(ctk.CTk):
             self.trial_lbl.configure(text=status)
 
     def _copy_endpoint(self):
-        endpoint = self.user.get("endpoint") if self.user else None
-        port = self.user.get("port") if self.user else None
-        value = f"{endpoint}:{port}" if endpoint and port else ""
+        value = self._endpoint_value()
         if not value:
             return
         self.clipboard_clear()
@@ -705,7 +710,7 @@ class App(ctk.CTk):
             self.pill.configure(text="conectado", text_color="#00241a", fg_color=OK)
             self.conn_status.configure(text="Status: conectado ao servidor", text_color=OK)
             if self.user and self.user.get("endpoint"):
-                self.endpoint_lbl.configure(text=f"{self.user['endpoint']}:{self.user.get('port')}",
+                self.endpoint_lbl.configure(text=self._endpoint_value(),
                                             text_color=OK)
         elif self.user and self.user.get("status") in ("blocked", "expired", "unused", "pending"):
             self.pill.configure(text="suspensa", text_color="white", fg_color=ERR)
@@ -714,7 +719,7 @@ class App(ctk.CTk):
             self.pill.configure(text="offline", text_color="#201500", fg_color=WARN)
             self.conn_status.configure(text="Status: desconectado", text_color=MUTED)
             if self.user and self.user.get("endpoint"):
-                self.endpoint_lbl.configure(text=f"{self.user['endpoint']}:{self.user.get('port')}",
+                self.endpoint_lbl.configure(text=self._endpoint_value(),
                                             text_color=TEXT)
 
     def _logout(self):
