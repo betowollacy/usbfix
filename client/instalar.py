@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import sys
+import urllib.request
 from ctypes import windll
 from pathlib import Path
 
@@ -9,6 +10,7 @@ APP_DIR_NAME = "USB FIX"
 EXE_NAME = "USB-Fix.exe"
 ICON_NAME = "USB-Fix.ico"
 APP_VERSION = "0.5.0"
+APP_DOWNLOAD_URL = "https://usbfix.site/downloads/USB-Fix.exe"
 UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\USB FIX"
 
 MB_OK = 0x0
@@ -79,9 +81,22 @@ def main():
         ]
         exe_src = next((path for path in exe_candidates if path.exists()), None)
         if exe_src is None:
-            msgbox("Arquivo ausente na pasta de instalação: " + EXE_NAME, icon=MB_ICONERROR)
-            return 1
+            download_path = app_dir / (EXE_NAME + ".download")
+            try:
+                urllib.request.urlretrieve(APP_DOWNLOAD_URL, download_path)
+                exe_src = download_path
+            except Exception as exc:
+                msgbox(
+                    "Não foi possível baixar o aplicativo:\n"
+                    + APP_DOWNLOAD_URL
+                    + "\n\n"
+                    + str(exc),
+                    icon=MB_ICONERROR,
+                )
+                return 1
         shutil.copyfile(exe_src, app_dir / EXE_NAME)
+        if exe_src.name.endswith(".download"):
+            exe_src.unlink(missing_ok=True)
 
         ico_src = bundled_dir / ICON_NAME
         if not ico_src.exists():
