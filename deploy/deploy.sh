@@ -11,7 +11,11 @@ if [ -f "$ENV_FILE" ]; then
     set -a; source "$ENV_FILE"; set +a
 elif [ -f /etc/tunnel/env ]; then
     echo "==> tunnel.env ausente; reaproveitando a configuracao atual da VPS (/etc/tunnel/env)..."
-    set -a; source /etc/tunnel/env; set +a
+    while IFS='=' read -r k v; do
+        case "$k" in ''|\#*) continue;; esac
+        v="${v%\"}"; v="${v#\"}"
+        export "$k=$v"
+    done < /etc/tunnel/env
     ADMIN_TOKEN="${TUNNEL_ADMIN_TOKEN:-}"
     FRP_TOKEN="${TUNNEL_FRPS_TOKEN:-}"
 else
@@ -77,18 +81,18 @@ fi
 
 echo "==> Configurando env da API (/etc/tunnel/env)..."
 cat > /etc/tunnel/env <<ENV
-TUNNEL_ADMIN_TOKEN=$ADMIN_TOKEN
-TUNNEL_SUBDOMAIN_HOST=$DOMAIN
-TUNNEL_FRPS_ADDR=$TUNNEL_FRPS_ADDR
-TUNNEL_FRPS_PORT=${TUNNEL_FRPS_PORT:-7000}
-TUNNEL_FRPS_TOKEN=$FRP_TOKEN
-TUNNEL_PORT_MIN=${TUNNEL_PORT_MIN:-40000}
-TUNNEL_PORT_MAX=${TUNNEL_PORT_MAX:-49999}
-TUNNEL_SUBSCRIPTION_DAYS=${TUNNEL_SUBSCRIPTION_DAYS:-30}
+TUNNEL_ADMIN_TOKEN="$ADMIN_TOKEN"
+TUNNEL_SUBDOMAIN_HOST="$DOMAIN"
+TUNNEL_FRPS_ADDR="$TUNNEL_FRPS_ADDR"
+TUNNEL_FRPS_PORT="${TUNNEL_FRPS_PORT:-7000}"
+TUNNEL_FRPS_TOKEN="$FRP_TOKEN"
+TUNNEL_PORT_MIN="${TUNNEL_PORT_MIN:-40000}"
+TUNNEL_PORT_MAX="${TUNNEL_PORT_MAX:-49999}"
+TUNNEL_SUBSCRIPTION_DAYS="${TUNNEL_SUBSCRIPTION_DAYS:-30}"
 TUNNEL_DATA_DIR=/opt/tunnel/data
-TUNNEL_WEBHOOK_SECRET=$TUNNEL_WEBHOOK_SECRET
-ASAAS_ACCESS_TOKEN=${ASAAS_ACCESS_TOKEN:-}
-ASAAS_BASE_URL=${ASAAS_BASE_URL:-https://www.asaas.com/api/v3}
+TUNNEL_WEBHOOK_SECRET="$TUNNEL_WEBHOOK_SECRET"
+ASAAS_ACCESS_TOKEN="${ASAAS_ACCESS_TOKEN:-}"
+ASAAS_BASE_URL="${ASAAS_BASE_URL:-https://www.asaas.com/api/v3}"
 ENV
 chmod 600 /etc/tunnel/env
 
@@ -97,7 +101,9 @@ cp "$PROJECT_DIR/deploy/systemd/frps.service" /etc/systemd/system/
 cp "$PROJECT_DIR/deploy/systemd/tunnel-api.service" /etc/systemd/system/
 chown -R tunnel:tunnel /opt/tunnel /etc/tunnel
 systemctl daemon-reload
-systemctl enable --now frps tunnel-api
+systemctl enable frps tunnel-api >/dev/null 2>&1
+systemctl restart frps tunnel-api
+systemctl --no-pager --full status tunnel-api | sed -n '1,5p'
 
 echo "==> Firewall (ufw)..."
 ufw allow OpenSSH >/dev/null 2>&1 || ufw allow 22/tcp >/dev/null
