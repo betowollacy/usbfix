@@ -1,0 +1,18 @@
+[Unit]
+Description=Tunnel API (FastAPI)
+After=network.target frps.service
+Wants=frps.service
+
+[Service]
+Type=simple
+User=tunnel
+Group=tunnel
+WorkingDirectory=/opt/tunnel/server
+EnvironmentFile=/etc/tunnel/env
+ExecStart=/opt/tunnel/venv/bin/uvicorn app:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

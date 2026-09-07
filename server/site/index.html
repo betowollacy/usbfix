@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>USB FIX — USB remoto por assinatura</title>
+<link rel="icon" type="image/png" href="logo.png">
+<style>
+  :root{
+    --bg:#0b1020; --bg2:#111a33; --card:#151f3d; --line:#243053;
+    --txt:#e7ecf7; --muted:#9aa7c9; --accent:#4f7cff; --accent2:#7c3aed;
+    --ok:#2ecc71; --warn:#f0b429; --err:#e74c3c;
+    --orange:#ff8a3d; --orange2:#ff5e2b;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{background:radial-gradient(1200px 500px at 80% -10%, var(--bg2), var(--bg)) fixed; color:var(--txt);
+       font-family:Segoe UI, system-ui, -apple-system, Roboto, Arial, sans-serif; line-height:1.55}
+  a{color:var(--accent); text-decoration:none}
+  a:hover{color:var(--orange)}
+  .wrap{max-width:1080px; margin:0 auto; padding:0 20px}
+  header{position:sticky; top:0; z-index:10; background:rgba(11,16,32,.85); backdrop-filter:blur(8px); border-bottom:1px solid var(--line)}
+  nav{display:flex; align-items:center; gap:22px; padding:14px 0}
+  .brand{font-weight:700; letter-spacing:.4px; display:flex; align-items:center; gap:10px}
+  .brand img{width:34px; height:34px; object-fit:contain; border-radius:9px; box-shadow:0 0 0 1px rgba(255,255,255,.12), 0 4px 14px rgba(0,0,0,.4)}
+  nav .spacer{flex:1}
+  nav button, .btn{background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border:0; border-radius:10px;
+       padding:10px 18px; font-weight:600; cursor:pointer; font-size:14px}
+  nav button:hover, .btn:hover{filter:brightness(1.1)}
+  .assin, .btn.assin, nav button.assin{background:linear-gradient(135deg,var(--orange),var(--orange2)) !important;
+       box-shadow:0 6px 20px rgba(255,122,26,.35)}
+  .drop{position:relative}
+  .dropmenu{position:absolute; right:0; top:calc(100% + 10px); width:300px; background:var(--card);
+       border:1px solid var(--line); border-radius:14px; padding:18px; box-shadow:0 20px 50px rgba(0,0,0,.5); z-index:50}
+  .dropmenu .mtabs{display:flex; gap:8px; margin-bottom:14px}
+  .dropmenu .mtabs button{flex:1; margin:0; padding:8px; font-size:13px; background:transparent;
+       border:1px solid var(--line); color:var(--txt); border-radius:8px; cursor:pointer; font-weight:600}
+  .dropmenu .mtabs button.on{background:linear-gradient(135deg,var(--orange),var(--orange2)); border-color:transparent}
+  .dropmenu .form{display:flex; flex-direction:column; gap:10px}
+  .dropmenu label{font-size:12px; color:var(--muted)}
+  .dropmenu input{background:var(--bg); border:1px solid var(--line); border-radius:8px; color:var(--txt);
+       padding:8px 10px; font-size:13px; width:100%; box-shadow:none}
+  .dropmenu input:focus{outline:2px solid var(--orange)}
+  .dropmenu .btn{width:100%; padding:9px; font-size:13px}
+  .dropmenu .form.hidden{display:none}
+  .btn.ghost{background:transparent; border:1px solid var(--line); color:var(--txt)}
+  h1{font-size:clamp(28px,5vw,48px); line-height:1.15; margin:10px 0 14px}
+  h2{font-size:26px; margin-bottom:8px}
+  h2::after{content:""; display:block; width:46px; height:4px; margin-top:8px; border-radius:999px;
+       background:linear-gradient(90deg,var(--orange),var(--accent))}
+  .hero{padding:70px 0 50px; text-align:center}
+  .hero p{color:var(--muted); font-size:18px; max-width:640px; margin:0 auto 26px}
+  .badges{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; color:var(--muted); font-size:14px; margin-top:18px}
+  .badges span{border:1px solid rgba(255,138,61,.45); border-radius:999px; padding:6px 14px}
+  .grid{display:grid; gap:18px; margin:26px 0}
+  .grid.steps{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+  .grid.cols{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:22px}
+  .step .n{font-size:30px; font-weight:800; background:linear-gradient(135deg,var(--orange),var(--orange2));
+       -webkit-background-clip:text; background-clip:text; color:transparent}
+  .card h3{margin:6px 0; font-size:17px}
+  .card p{color:var(--muted); font-size:14px}
+  .price{font-size:40px; font-weight:800; background:linear-gradient(135deg,var(--orange),var(--orange2));
+       -webkit-background-clip:text; background-clip:text; color:transparent}
+  .price small{font-size:15px; color:var(--muted); font-weight:400}
+  .price li{list-style:none; color:var(--muted); margin:8px 0; font-size:15px}
+  .price li::before{content:"•"; color:var(--orange); font-weight:900; margin-right:8px}
+  .cta{display:block; text-align:center; margin-top:20px}
+  #downloads .card{display:flex; flex-direction:column}
+  #downloads .card .cta{margin-top:auto}
+  .form{display:flex; flex-direction:column; gap:12px}
+  .form label{font-size:13px; color:var(--muted)}
+  input{background:var(--bg); border:1px solid var(--line); border-radius:10px; color:var(--txt);
+       padding:12px 14px; font-size:15px; width:100%}
+  input:focus{outline:2px solid var(--orange)}
+  .tabs{display:flex; gap:8px; margin-bottom:16px}
+  .tabs button{flex:1; background:transparent; border:1px solid var(--line); border-radius:10px;
+       color:var(--muted); padding:10px; cursor:pointer; font-weight:600}
+  .tabs button.on{background:var(--card); color:var(--txt); border-color:var(--accent)}
+  .msg{border-radius:10px; padding:12px 14px; font-size:14px; display:none}
+  .msg.show{display:block}
+  .msg.ok{background:rgba(46,204,113,.12); color:var(--ok); border:1px solid rgba(46,204,113,.4)}
+  .msg.err{background:rgba(231,76,60,.12); color:var(--err); border:1px solid rgba(231,76,60,.4)}
+  .qr{text-align:center; padding:18px}
+  .qr img{width:210px; height:210px; border-radius:12px; background:#fff; padding:8px}
+  .qrcode-note{color:var(--muted); font-size:14px; margin-top:10px}
+  .copybtn{margin-top:14px}
+  .pixcode{background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px;
+       font-size:12px; word-break:break-all; color:var(--muted); margin-top:10px; max-height:96px; overflow:auto;
+       white-space:pre-wrap; font-family:Consolas, monospace}
+  .hidden{display:none}
+  .statusrow{display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:8px;
+       font-size:14px; color:var(--muted); border-bottom:1px dashed var(--line); padding-bottom:8px}
+  .statusrow b{color:var(--txt); font-weight:600}
+  .pill{border-radius:999px; padding:3px 12px; font-size:12px; font-weight:700}
+  .pill.active{background:rgba(46,204,113,.15); color:var(--ok)}
+  .pill.pending{background:rgba(240,180,41,.15); color:var(--warn)}
+  .pill.expired, .pill.blocked{background:rgba(231,76,60,.15); color:var(--err)}
+  footer{border-top:1px solid rgba(255,138,61,.35); margin-top:60px; padding:26px 0; color:var(--muted); font-size:13px}
+  .spin{display:inline-block; width:16px; height:16px; border:2px solid var(--line); border-top-color:var(--orange);
+       border-radius:50%; animation:r 1s linear infinite; vertical-align:-3px; margin-right:8px}
+  .dlpending{opacity:.55; cursor:not-allowed}
+  @keyframes r{to{transform:rotate(360deg)}}
+  button:disabled{opacity:.6; cursor:not-allowed}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <nav>
+      <div class="brand"><img src="logo.png" alt="USB FIX">USB FIX</div>
+      <span class="spacer"></span>
+      <a href="#como" id="lnkComo">Como funciona</a>
+      <a href="#downloads" id="lnkDownloads">Downloads</a>
+      <a href="#preco" id="lnkPreco">Preço</a>
+      <span class="drop" id="dropAuth">
+        <button onclick="openAuth('login')">Entrar</button>
+        <button onclick="openAuth('reg')">Criar conta</button>
+        <div class="dropmenu hidden" id="dropMenu">
+          <div class="mtabs">
+            <button id="ntabLogin" class="on" onclick="navSwitch('login')">Entrar</button>
+            <button id="ntabReg" onclick="navSwitch('reg')">Criar conta</button>
+          </div>
+          <form class="form" id="nFormLogin" onsubmit="return navLogin(event)">
+            <label>E-mail</label><input id="nLiEmail" type="email" autocomplete="email" required>
+            <label>Senha</label><input id="nLiPass" type="password" autocomplete="current-password" required>
+            <button class="btn" type="submit">Entrar</button>
+            <a href="#" onclick="navReset(); return false;" style="font-size:12px; text-align:center">Esqueci a senha</a>
+          </form>
+          <form class="form hidden" id="nFormReg" onsubmit="return navReg(event)">
+            <label>E-mail</label><input id="nReEmail" type="email" autocomplete="email" required>
+            <label>Senha (mínimo 6 caracteres)</label><input id="nRePass" type="password" autocomplete="new-password" required>
+            <button class="btn" type="submit">Criar conta</button>
+          </form>
+          <form class="form hidden" id="nFormReset" onsubmit="return doReset(event)">
+            <p style="color:var(--muted); font-size:13px; margin:0">Cole aqui o link/token recebido e crie uma nova senha.</p>
+            <label>Token de recuperação</label><input id="nRsTok" required>
+            <label>Nova senha (mínimo 6 caracteres)</label><input id="nRsPass" type="password" autocomplete="new-password" required>
+            <button class="btn" type="submit">Definir nova senha</button>
+            <a href="#" onclick="navSwitch('login'); return false;" style="font-size:12px; text-align:center">Voltar ao login</a>
+          </form>
+          <div id="navMsg" class="msg"></div>
+        </div>
+      </span>
+      <button class="assin" onclick="assinar()">Assinar</button>
+    </nav>
+  </div>
+</header>
+
+<section class="hero wrap">
+  <h1>Use dispositivos USB de qualquer lugar do mundo</h1>
+  <p>Transforme a máquina remota em um servidor USB: impressoras, catracas, leitores, máquinas e comandas funcionam
+     na rede local como se estivessem ao lado do equipamento.</p>
+  <div class="badges">
+    <span>Configuração em minutos</span>
+    <span>Funciona com USB Redirector</span>
+    <span>100% sob assinatura</span>
+  </div>
+</section>
+
+<section id="como" class="wrap">
+  <h2>Como funciona</h2>
+  <div class="grid steps">
+    <div class="card step"><div class="n">1</div><h3>Crie sua conta</h3>
+      <p>Cadastre e-mail e senha. Sua conta recebe um subdomínio e uma porta exclusivos.</p></div>
+    <div class="card step"><div class="n">2</div><h3>Assine via Pix</h3>
+      <p>Escolha o plano e pague com Pix. A liberação é automática assim que o pagamento é confirmado.</p></div>
+    <div class="card step"><div class="n">3</div><h3>Conecte o USB</h3>
+      <p>No computador com o equipamento, instale o app e o USB Redirector. No computador de trabalho, conecte à porta do túnel.</p></div>
+  </div>
+</section>
+
+<section id="downloads" class="wrap">
+  <h2>Downloads</h2>
+  <div class="grid cols">
+    <div class="card">
+      <h3>USB FIX — app</h3>
+      <p>Servidor USB do nosso túnel. Instale no computador onde está o equipamento conectado.</p>
+      <a id="dlApp" class="btn cta" target="_blank" rel="noopener">Baixar app</a>
+    </div>
+    <div class="card">
+      <h3>USB Redirector — Cliente</h3>
+      <p>Instale no computador de trabalho, onde você quer usar o dispositivo remoto.</p>
+      <a id="dlUsbCli" class="btn cta" target="_blank" rel="noopener">Baixar cliente</a>
+    </div>
+    <div class="card">
+      <h3>USB Redirector — Servidor</h3>
+      <p>Instale junto com o nosso app, na máquina onde o equipamento USB está conectado.</p>
+      <a id="dlUsbSrv" class="btn cta" target="_blank" rel="noopener">Baixar servidor</a>
+    </div>
+  </div>
+  <div class="card hidden" id="dlKeyBox" style="margin-top:18px">
+    <h3 style="margin-top:0">Key de ativação do USB Redirector</h3>
+    <p style="color:var(--muted); font-size:14px">Use esta key na ativação do USB Redirector.</p>
+    <div class="pixcode" id="dlKey"></div>
+    <button class="btn ghost copybtn" id="dlKeyBtn" onclick="copyKey()">Copiar key</button>
+  </div>
+</section>
+
+<section id="preco" class="wrap">
+  <h2>Preço</h2>
+  <div class="grid cols">
+    <div class="card price">
+      <h3>Plano <span id="planName">Base</span></h3>
+      <p><span class="price" id="planPrice">R$ 30</span> <small>/ <span id="planDays">30</span> dias</small></p>
+      <ul>
+        <li>1 dispositivo USB simultâneo</li>
+        <li>Subdomínio exclusivo (ex.: cliente1234.meudominio.com)</li>
+        <li>Porta dedicada</li>
+        <li>Acesso ao aplicativo de conexão</li>
+      </ul>
+      <a class="btn cta assin" href="#" onclick="return assinar()">Assinar agora</a>
+    </div>
+  </div>
+</section>
+
+<section id="area" class="wrap hidden">
+  <h2>Área do cliente</h2>
+  <div class="grid cols">
+    <div class="card" id="acctPanel">
+      <h3 style="margin-top:0">Minha conta</h3>
+      <div class="statusrow"><span>E-mail</span><b id="meUser"></b></div>
+      <div class="statusrow"><span>Status</span><span id="meStatus"></span></div>
+      <div class="statusrow"><span>Subdomínio</span><b id="meSub"></b></div>
+      <div class="statusrow"><span>Porta</span><b id="mePort"></b></div>
+      <div class="statusrow"><span>Válido até</span><b id="meValid"></b></div>
+      <div id="subBox" style="margin-top:14px">
+        <p style="color:var(--muted); font-size:14px; margin-bottom:10px">Escolha o nome do seu endereço de conexão (<span id="subSuffix">.meudominio.com</span>):</p>
+        <form class="form" onsubmit="return doSetSub(event)">
+          <div style="display:flex; gap:8px">
+            <input id="subInp" required placeholder="cliente1234">
+            <button class="btn" type="submit" style="white-space:nowrap">Salvar</button>
+          </div>
+        </form>
+      </div>
+      <div id="extendBox" style="margin-top:14px">
+        <p style="color:var(--muted); font-size:14px; margin-bottom:10px">Renovar ou assinar — pagamento via Pix:</p>
+        <form class="form" onsubmit="return doCheckout(event)">
+          <label>Nome completo</label><input id="coName" required>
+          <label>E-mail (opcional)</label><input id="coEmail" type="email">
+          <label>CPF (somente números)</label><input id="coCpf" inputmode="numeric" required>
+          <button class="btn" type="submit">Gerar Pix de R$ <span id="coPrice">30</span></button>
+        </form>
+      </div>
+      <div id="passBox" style="margin-top:14px">
+        <p style="color:var(--muted); font-size:14px; margin-bottom:10px">Trocar senha:</p>
+        <form class="form" onsubmit="return doChangePass(event)">
+          <label>Senha atual</label><input id="cpCur" type="password" autocomplete="current-password" required>
+          <label>Nova senha (mínimo 6 caracteres)</label><input id="cpNew" type="password" autocomplete="new-password" required>
+          <button class="btn ghost" type="submit">Alterar senha</button>
+        </form>
+        <div id="passMsg" class="msg"></div>
+      </div>
+      <button class="btn ghost" style="margin-top:12px" onclick="logout()">Sair</button>
+    </div>
+
+    <div class="card hidden" id="payPanel">
+      <h3 style="margin-top:0">Pagamento via Pix</h3>
+      <div class="qr">
+        <img id="qrImg" alt="QR Code Pix">
+        <p class="qrcode-note">Pague com o app do seu banco. A liberação acontece em segundos.</p>
+        <button class="btn ghost copybtn" id="copyBtn" onclick="copyPayload()">Copiar código copia-e-cola</button>
+        <div class="pixcode" id="qrText"></div>
+      </div>
+      <div id="payMsg" class="msg"></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">USB FIX — acesso remoto USB por assinatura. Suporte pelo canal do vendedor.</div>
+</footer>
+
+<script>
+const $ = s => document.querySelector(s);
+let token = null;
+let session = null;
+let pollTimer = null;
+
+async function api(method, path, body){
+  const headers = {'Content-Type':'application/json'};
+  if(token) headers['Authorization'] = 'Bearer ' + token;
+  const resp = await fetch('/api' + path, {method, headers, body: body ? JSON.stringify(body) : undefined});
+  const text = await resp.text();
+  const data = text ? JSON.parse(text) : {};
+  if(!resp.ok) throw new Error(data.detail || ('Erro ' + resp.status));
+  return data;
+}
+
+function msg(el, text, kind){
+  const m = $(el);
+  m.textContent = text;
+  m.className = 'msg show ' + (kind||'err');
+}
+function scrollTo(sel){ document.querySelector(sel).scrollIntoView({behavior:'smooth'}); }
+
+function assinar(){
+  if(token){ showAcct(); scrollTo('#area'); }
+  else{ openAuth('reg'); }
+}
+
+function openAuth(tab){
+  const m = $('#dropMenu');
+  m.classList.remove('hidden');
+  navSwitch(tab);
+  document.removeEventListener('click', closeAuth);
+  document.addEventListener('click', closeAuth);
+}
+function closeAuth(e){
+  const el = $('#dropAuth');
+  if(!el || !el.contains(e.target)){
+    $('#dropMenu').classList.add('hidden');
+    document.removeEventListener('click', closeAuth);
+  }
+}
+function navSwitch(which){
+  $('#ntabLogin').classList.toggle('on', which==='login');
+  $('#ntabReg').classList.toggle('on', which==='reg');
+  $('#nFormLogin').classList.toggle('hidden', which!=='login');
+  $('#nFormReg').classList.toggle('hidden', which!=='reg');
+  $('#nFormReset').classList.add('hidden');
+  $('#navMsg').className = 'msg';
+}
+function navReset(prefill){
+  if(prefill){ $('#nRsTok').value = prefill; }
+  $('#nFormLogin').classList.add('hidden');
+  $('#nFormReg').classList.add('hidden');
+  $('#nFormReset').classList.remove('hidden');
+  $('#ntabLogin').classList.remove('on');
+  $('#ntabReg').classList.remove('on');
+  $('#navMsg').className = 'msg';
+}
+async function doReset(e){
+  e.preventDefault();
+  try{
+    const data = await api('POST','/reset-password',{token:$('#nRsTok').value.trim(), new:$('#nRsPass').value});
+    $('#nRsTok').value=''; $('#nRsPass').value='';
+    msg('#navMsg', data.message, 'ok');
+    navSwitch('login');
+  }catch(err){ msg('#navMsg', err.message, 'err'); }
+  return false;
+}
+async function navLogin(e){
+  e.preventDefault();
+  try{
+    token = null;
+    const data = await api('POST','/login',{email:$('#nLiEmail').value.trim().toLowerCase(), password:$('#nLiPass').value});
+    token = data.token;
+    session = data.user;
+    try{ localStorage.setItem('tunnel.token', token); localStorage.setItem('tunnel.user', JSON.stringify(session)); }catch(_){}
+    $('#dropMenu').classList.add('hidden');
+    $('#dropAuth').classList.add('hidden');
+    await loadDownloads();
+    showAcct();
+    scrollTo('#area');
+  }catch(err){ msg('#navMsg', err.message, 'err'); }
+  return false;
+}
+async function navReg(e){
+  e.preventDefault();
+  try{
+    const data = await api('POST','/register',{email:$('#nReEmail').value.trim().toLowerCase(), password:$('#nRePass').value});
+    msg('#navMsg', data.message, 'ok');
+    navSwitch('login');
+  }catch(err){ msg('#navMsg', err.message, 'err'); }
+  return false;
+}
+
+function showAcct(){
+  $('#area').classList.remove('hidden');
+  $('#acctPanel').classList.remove('hidden');
+  $('#payPanel').classList.add('hidden');
+  $('#dropAuth').classList.add('hidden');
+  session = session || JSON.parse(localStorage.getItem('tunnel.user') || 'null');
+  renderAcct();
+}
+
+function statusPill(s){
+  const map = {active:['active','Ativa'], pending:['pending','Aguardando liberação'], expired:['expired','Expirada'], blocked:['blocked','Bloqueada']};
+  const [cls,label] = map[s] || ['pending', s];
+  return '<span class="pill '+cls+'">'+label+'</span>';
+}
+
+function renderAcct(){
+  $('#meUser').textContent = session.email || session.username;
+  $('#meStatus').innerHTML = statusPill(session.status);
+  $('#meSub').textContent = session.endpoint || '—';
+  $('#mePort').textContent = session.port || '—';
+  $('#meValid').textContent = session.validUntil ? new Date(session.validUntil).toLocaleDateString('pt-BR') : '—';
+  const sub = session.subdomain || '';
+  $('#subInp').value = sub;
+  const domain = (session.endpoint && session.endpoint.split('.').slice(1).join('.')) || '';
+  $('#subSuffix').textContent = domain ? '.'+domain : '';
+}
+
+async function doSetSub(e){
+  e.preventDefault();
+  try{
+    const data = await api('POST','/subdomain',{subdomain:$('#subInp').value.trim().toLowerCase()});
+    session = data;
+    try{ localStorage.setItem('tunnel.user', JSON.stringify(session)); }catch(_){}
+    renderAcct();
+    msg('#navMsg','Endereço atualizado!','ok');
+  }catch(err){
+    msg('#navMsg', err.message, 'err');
+  }
+  return false;
+}
+
+async function doChangePass(e){
+  e.preventDefault();
+  try{
+    const data = await api('POST','/change-password',{current:$('#cpCur').value, new:$('#cpNew').value});
+    $('#cpCur').value=''; $('#cpNew').value='';
+    const m = $('#passMsg'); m.textContent = data.message||'Senha alterada com sucesso.'; m.className='msg show ok';
+    setTimeout(()=> m.className='msg', 3500);
+  }catch(err){ const m=$('#passMsg'); m.textContent='Erro: '+err.message; m.className='msg show err'; }
+  return false;
+}
+
+async function doCheckout(e){
+  e.preventDefault();
+  try{
+    const plan = await api('GET','/plan');
+    $('#coPrice').textContent = plan.price.toFixed(2).replace('.', ',');
+    const data = await api('POST','/checkout',{
+      name:$('#coName').value,
+      email:$('#coEmail').value || null,
+      cpf:$('#coCpf').value.replace(/\D/g,''),
+    });
+    $('#acctPanel').classList.add('hidden');
+    $('#payPanel').classList.remove('hidden');
+    $('#qrImg').src = 'data:image/png;base64,' + data.qrCode.encodedImage;
+    $('#qrText').textContent = data.qrCode.payload || '';
+    msg('#payMsg', 'Aguardando pagamento...', 'ok');
+    clearInterval(pollTimer);
+    pollTimer = setInterval(() => checkPayment(data.paymentId), 4000);
+  }catch(err){
+    if(token){ msg('#payMsg', err.message, 'err'); }
+    else{ openAuth('login'); }
+  }
+  return false;
+}
+
+async function checkPayment(paymentId){
+  try{
+    const data = await api('GET','/payment/'+paymentId);
+    if(data.paid){
+      clearInterval(pollTimer);
+      msg('#payMsg', 'Pagamento confirmado! Sua licença foi liberada. Abra o aplicativo e faça login.', 'ok');
+      session = await api('GET','/me');
+      localStorage.setItem('tunnel.user', JSON.stringify(session));
+      renderAcct();
+    }else if(data.status==='paid'){
+      clearInterval(pollTimer);
+      msg('#payMsg', 'Pagamento confirmado! Licença liberada.', 'ok');
+    }
+  }catch(_){}
+}
+
+function copyPayload(){
+  const code = $('#qrText').textContent;
+  if(!code) return;
+  copyText(code, $('#copyBtn'), 'Copiar código copia-e-cola', 'Copiado!');
+}
+
+function copyKey(){
+  const code = $('#dlKey').textContent;
+  if(!code) return;
+  copyText(code, $('#dlKeyBtn'), 'Copiar key', 'Copiada!');
+}
+
+function copyText(text, btn, normal, done){
+  const finish = () => { btn.textContent = done; setTimeout(()=> btn.textContent = normal, 2000); };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(finish).catch(finish);
+  }else{
+    const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); ta.remove(); finish();
+  }
+}
+
+async function loadDownloads(){
+  try{
+    const data = await api('GET','/downloads');
+    setLink('#dlApp', data.app && data.app.url, 'Baixar app');
+    const usb = data.usbRedirector || {};
+    setLink('#dlUsbCli', usb.client && usb.client.url, 'Baixar cliente');
+    setLink('#dlUsbSrv', usb.server && usb.server.url, 'Baixar servidor');
+    const box = $('#dlKeyBox');
+    if(data.activationKey){
+      box.classList.remove('hidden');
+      $('#dlKey').textContent = data.activationKey;
+    }else{
+      box.classList.add('hidden');
+    }
+  }catch(_){}
+}
+
+function setLink(sel, url, label){
+  const a = $(sel);
+  if(url){ a.href = url; a.classList.remove('hidden'); }
+  else{ a.href = '#'; a.textContent = 'Em breve'; a.classList.add('dlpending'); }
+}
+
+async function initPlan(){ return api('GET','/plan'); }
+
+function logout(){
+  token = null; session = null; clearInterval(pollTimer);
+  try{ localStorage.removeItem('tunnel.token'); localStorage.removeItem('tunnel.user'); }catch(_){}
+  $('#area').classList.add('hidden');
+  $('#acctPanel').classList.add('hidden');
+  $('#payPanel').classList.add('hidden');
+  $('#dropAuth').classList.remove('hidden');
+  $('#dropMenu').classList.add('hidden');
+}
+
+(async function boot(){
+  try{ const p = await api('GET','/plan'); setPlan(p); }catch(_){}
+  await loadDownloads();
+  try{
+    const saved = localStorage.getItem('tunnel.token');
+    if(saved){ token = saved; session = await api('GET','/me'); showAcct(); await loadDownloads(); }
+  }catch(_){}
+  const m = (location.hash||'').match(/^#reset=(.+)$/);
+  if(m){
+    openAuth('login');
+    navReset(decodeURIComponent(m[1]));
+    location.hash = '';
+  }
+})();
+
+function setPlan(p){
+  $('#planName').textContent = p.name;
+  $('#planPrice').textContent = 'R$ ' + p.price.toFixed(2).replace('.', ',');
+  $('#planDays').textContent = p.days;
+  $('#coPrice').textContent = p.price.toFixed(2).replace('.', ',');
+}
+</script>
+</body>
+</html>
