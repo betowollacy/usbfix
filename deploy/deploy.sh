@@ -64,6 +64,7 @@ REL="${VER#v}"
 ARCHIVE="/tmp/frp_${REL}_linux_amd64.tar.gz"
 curl -fsSL -o "$ARCHIVE" "https://github.com/fatedier/frp/releases/download/${VER}/frp_${REL}_linux_amd64.tar.gz"
 tar -xzf "$ARCHIVE" -C /tmp
+systemctl stop frps 2>/dev/null || true
 cp "/tmp/frp_${REL}_linux_amd64/frps" /opt/tunnel/frps
 chmod +x /opt/tunnel/frps
 
