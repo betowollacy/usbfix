@@ -8,7 +8,7 @@ if errorlevel 1 goto :erro
 
 echo.
 echo === Build instalador ===
-python -m PyInstaller --noconfirm --clean --onefile --windowed --name "Instalar USB FIX" --icon USB-Fix.ico instalar.py
+python -m PyInstaller --noconfirm --clean "Instalar USB FIX.spec"
 if errorlevel 1 goto :erro
 
 echo.

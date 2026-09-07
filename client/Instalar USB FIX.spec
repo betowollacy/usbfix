@@ -5,7 +5,7 @@ a = Analysis(
     ['instalar.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('dist/USB-Fix.exe', '.'), ('USB-Fix.ico', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

@@ -66,7 +66,7 @@ def register_uninstall(app_dir):
 
 def main():
     try:
-        src = Path(sys.executable).resolve().parent
+        src = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
         app_dir = Path(os.environ["LOCALAPPDATA"]) / "Programs" / APP_DIR_NAME
         app_dir.mkdir(parents=True, exist_ok=True)
 
