@@ -585,7 +585,7 @@ function assinarPlan(el){
   const pid = el.getAttribute('data-plan');
   if(!token){
     try{ sessionStorage.setItem('tunnel.plan', pid); }catch(_){}
-    openAuth('login');
+    openAuth('reg');
     return false;
   }
   showAcct();
