@@ -71,10 +71,14 @@ def main():
         app_dir = Path(os.environ["LOCALAPPDATA"]) / "Programs" / APP_DIR_NAME
         app_dir.mkdir(parents=True, exist_ok=True)
 
-        exe_src = bundled_dir / EXE_NAME
-        if not exe_src.exists():
-            exe_src = src / EXE_NAME
-        if not exe_src.exists():
+        exe_candidates = [
+            bundled_dir / EXE_NAME,
+            src / EXE_NAME,
+            Path(__file__).resolve().parent / EXE_NAME,
+            Path(__file__).resolve().parent / "dist" / EXE_NAME,
+        ]
+        exe_src = next((path for path in exe_candidates if path.exists()), None)
+        if exe_src is None:
             msgbox("Arquivo ausente na pasta de instalação: " + EXE_NAME, icon=MB_ICONERROR)
             return 1
         shutil.copyfile(exe_src, app_dir / EXE_NAME)
