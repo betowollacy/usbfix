@@ -23,6 +23,13 @@ mkdir -p /opt/tunnel/server /opt/tunnel/data /etc/tunnel
 cp -r "$PROJECT_DIR/server/." /opt/tunnel/server/
 cp "$PROJECT_DIR/server/frps.toml" /opt/tunnel/frps.toml
 
+if [ -f "$PROJECT_DIR/client/dist/Instalar USB FIX.exe" ]; then
+    echo "==> Publicando instalador USB FIX..."
+    mkdir -p /opt/tunnel/server/site/downloads
+    cp "$PROJECT_DIR/client/dist/Instalar USB FIX.exe" \
+        "/opt/tunnel/server/site/downloads/Instalar USB FIX.exe"
+fi
+
 echo "==> venv + dependências da API..."
 python3 -m venv /opt/tunnel/venv
 /opt/tunnel/venv/bin/pip install -q --upgrade pip
