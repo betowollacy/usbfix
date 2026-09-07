@@ -705,7 +705,7 @@ class App(ctk.CTk):
             self.pill.configure(text="conectado", text_color="#00241a", fg_color=OK)
             self.conn_status.configure(text="Status: conectado ao servidor", text_color=OK)
             if self.user and self.user.get("endpoint"):
-                self.endpoint_lbl.configure(text=f"✓ {self.user['endpoint']}:{self.user.get('port')}",
+                self.endpoint_lbl.configure(text=f"{self.user['endpoint']}:{self.user.get('port')}",
                                             text_color=OK)
         elif self.user and self.user.get("status") in ("blocked", "expired", "unused", "pending"):
             self.pill.configure(text="suspensa", text_color="white", fg_color=ERR)
