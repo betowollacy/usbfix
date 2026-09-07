@@ -6,7 +6,19 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="$PROJECT_DIR/deploy/tunnel.env"
-set -a; source "$ENV_FILE"; set +a
+if [ -f "$ENV_FILE" ]; then
+    echo "==> Usando deploy/tunnel.env do projeto..."
+    set -a; source "$ENV_FILE"; set +a
+elif [ -f /etc/tunnel/env ]; then
+    echo "==> tunnel.env ausente; reaproveitando a configuracao atual da VPS (/etc/tunnel/env)..."
+    set -a; source /etc/tunnel/env; set +a
+    ADMIN_TOKEN="${TUNNEL_ADMIN_TOKEN:-}"
+    FRP_TOKEN="${TUNNEL_FRPS_TOKEN:-}"
+else
+    echo "ERRO: deploy/tunnel.env ausente e nenhuma instalacao anterior encontrada em /etc/tunnel."
+    echo "Crie deploy/tunnel.env (veja README) para a primeira instalacao."
+    exit 1
+fi
 
 DOMAIN="${TUNNEL_SUBDOMAIN_HOST:-usbfix.site}"
 ADMIN_TOKEN="${TUNNEL_ADMIN_TOKEN:-$(openssl rand -hex 24)}"
