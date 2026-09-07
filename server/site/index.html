@@ -54,6 +54,9 @@
   .grid{display:grid; gap:18px; margin:26px 0}
   .grid.steps{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
   .grid.cols{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  #plansGrid{align-items:stretch}
+  #plansGrid .card{height:100%; display:flex; flex-direction:column}
+  #plansGrid .card .assin{margin-top:auto}
   .card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:22px}
   .step .n{font-size:30px; font-weight:800; background:linear-gradient(135deg,var(--orange),var(--orange2));
        -webkit-background-clip:text; background-clip:text; color:transparent}
@@ -109,9 +112,6 @@
     <nav>
       <div class="brand"><img src="logo.png" alt="USB FIX">USB FIX</div>
       <span class="spacer"></span>
-      <a href="#como" id="lnkComo">Como funciona</a>
-      <a href="#downloads" id="lnkDownloads">Downloads</a>
-      <a href="#preco" id="lnkPreco">Preço</a>
       <span class="drop" id="dropAuth">
         <button onclick="openAuth('login')">Entrar</button>
         <button onclick="openAuth('reg')">Criar conta</button>
@@ -121,13 +121,14 @@
             <button id="ntabReg" onclick="navSwitch('reg')">Criar conta</button>
           </div>
           <form class="form" id="nFormLogin" onsubmit="return navLogin(event)">
-            <label>E-mail</label><input id="nLiEmail" type="email" autocomplete="email" required>
+            <label>Usuário</label><input id="nLiEmail" type="text" autocomplete="username" placeholder="seu usuário" required>
             <label>Senha</label><input id="nLiPass" type="password" autocomplete="current-password" required>
             <button class="btn" type="submit">Entrar</button>
             <a href="#" onclick="navReset(); return false;" style="font-size:12px; text-align:center">Esqueci a senha</a>
           </form>
           <form class="form hidden" id="nFormReg" onsubmit="return navReg(event)">
-            <label>E-mail</label><input id="nReEmail" type="email" autocomplete="email" required>
+            <label>Usuário</label><input id="nReUser" type="text" autocomplete="username" placeholder="3 a 32 caracteres" required>
+            <label>E-mail</label><input id="nReEmail" type="email" autocomplete="email" placeholder="seu@email.com" required>
             <label>Senha (mínimo 6 caracteres)</label><input id="nRePass" type="password" autocomplete="new-password" required>
             <button class="btn" type="submit">Criar conta</button>
           </form>
@@ -141,12 +142,13 @@
           <div id="navMsg" class="msg"></div>
         </div>
       </span>
+      <button class="btn ghost hidden" id="btnSair" onclick="logout()">Sair</button>
       <button class="assin" onclick="assinar()">Assinar</button>
     </nav>
   </div>
 </header>
 
-<section class="hero wrap">
+<section class="hero wrap" id="hero">
   <h1>Use dispositivos USB de qualquer lugar do mundo</h1>
   <p>Transforme a máquina remota em um servidor USB: impressoras, catracas, leitores, máquinas e comandas funcionam
      na rede local como se estivessem ao lado do equipamento.</p>
@@ -161,7 +163,7 @@
   <h2>Como funciona</h2>
   <div class="grid steps">
     <div class="card step"><div class="n">1</div><h3>Crie sua conta</h3>
-      <p>Cadastre e-mail e senha. Sua conta recebe um subdomínio e uma porta exclusivos.</p></div>
+      <p>Cadastre usuário, e-mail e senha. Sua conta recebe um subdomínio e uma porta exclusivos.</p></div>
     <div class="card step"><div class="n">2</div><h3>Assine via Pix</h3>
       <p>Escolha o plano e pague com Pix. A liberação é automática assim que o pagamento é confirmado.</p></div>
     <div class="card step"><div class="n">3</div><h3>Conecte o USB</h3>
@@ -198,19 +200,7 @@
 
 <section id="preco" class="wrap">
   <h2>Preço</h2>
-  <div class="grid cols">
-    <div class="card price">
-      <h3>Plano <span id="planName">Base</span></h3>
-      <p><span class="price" id="planPrice">R$ 30</span> <small>/ <span id="planDays">30</span> dias</small></p>
-      <ul>
-        <li>1 dispositivo USB simultâneo</li>
-        <li>Subdomínio exclusivo (ex.: cliente1234.meudominio.com)</li>
-        <li>Porta dedicada</li>
-        <li>Acesso ao aplicativo de conexão</li>
-      </ul>
-      <a class="btn cta assin" href="#" onclick="return assinar()">Assinar agora</a>
-    </div>
-  </div>
+  <div class="grid cols" id="plansGrid"></div>
 </section>
 
 <section id="area" class="wrap hidden">
@@ -218,7 +208,7 @@
   <div class="grid cols">
     <div class="card" id="acctPanel">
       <h3 style="margin-top:0">Minha conta</h3>
-      <div class="statusrow"><span>E-mail</span><b id="meUser"></b></div>
+      <div class="statusrow"><span>Usuário</span><b id="meUser"></b></div>
       <div class="statusrow"><span>Status</span><span id="meStatus"></span></div>
       <div class="statusrow"><span>Subdomínio</span><b id="meSub"></b></div>
       <div class="statusrow"><span>Porta</span><b id="mePort"></b></div>
@@ -235,11 +225,22 @@
       <div id="extendBox" style="margin-top:14px">
         <p style="color:var(--muted); font-size:14px; margin-bottom:10px">Renovar ou assinar — pagamento via Pix:</p>
         <form class="form" onsubmit="return doCheckout(event)">
+          <label>Plano</label>
+          <select id="coPlan"></select>
           <label>Nome completo</label><input id="coName" required>
           <label>E-mail (opcional)</label><input id="coEmail" type="email">
           <label>CPF (somente números)</label><input id="coCpf" inputmode="numeric" required>
-          <button class="btn" type="submit">Gerar Pix de R$ <span id="coPrice">30</span></button>
+          <button class="btn" type="submit">Gerar Pix de R$ <span id="coBtnPrice">25</span></button>
         </form>
+      </div>
+      <div id="userBox" style="margin-top:14px">
+        <p style="color:var(--muted); font-size:14px; margin-bottom:10px">Usuário de login:</p>
+        <p style="color:var(--muted); font-size:13px; margin-bottom:10px">Sua conta ainda usa o e-mail como usuário. Defina um nome para entrar com ele (o e-mail continua funcionando).</p>
+        <form class="form" onsubmit="return doUserName(event)">
+          <label>Novo nome de usuário (3 a 32 caracteres)</label><input id="unInp" required placeholder="cliente1234">
+          <button class="btn ghost" type="submit">Alterar usuário</button>
+        </form>
+        <div id="unMsg" class="msg"></div>
       </div>
       <div id="passBox" style="margin-top:14px">
         <p style="color:var(--muted); font-size:14px; margin-bottom:10px">Trocar senha:</p>
@@ -275,6 +276,7 @@ const $ = s => document.querySelector(s);
 let token = null;
 let session = null;
 let pollTimer = null;
+let plans = [];
 
 async function api(method, path, body){
   const headers = {'Content-Type':'application/json'};
@@ -339,33 +341,42 @@ async function doReset(e){
   }catch(err){ msg('#navMsg', err.message, 'err'); }
   return false;
 }
+async function loginInto(identifier, password){
+  token = null;
+  const data = await api('POST','/login',{username:identifier, password:password});
+  token = data.token;
+  session = data.user;
+  try{ localStorage.setItem('tunnel.token', token); localStorage.setItem('tunnel.user', JSON.stringify(session)); }catch(_){}
+  $('#dropMenu').classList.add('hidden');
+  $('#dropAuth').classList.add('hidden');
+  await loadDownloads();
+  showAcct();
+  scrollTo('#area');
+  applySavedPlan();
+}
 async function navLogin(e){
   e.preventDefault();
   try{
-    token = null;
-    const data = await api('POST','/login',{email:$('#nLiEmail').value.trim().toLowerCase(), password:$('#nLiPass').value});
-    token = data.token;
-    session = data.user;
-    try{ localStorage.setItem('tunnel.token', token); localStorage.setItem('tunnel.user', JSON.stringify(session)); }catch(_){}
-    $('#dropMenu').classList.add('hidden');
-    $('#dropAuth').classList.add('hidden');
-    await loadDownloads();
-    showAcct();
-    scrollTo('#area');
+    await loginInto($('#nLiEmail').value.trim().toLowerCase(), $('#nLiPass').value);
   }catch(err){ msg('#navMsg', err.message, 'err'); }
   return false;
 }
 async function navReg(e){
   e.preventDefault();
   try{
-    const data = await api('POST','/register',{email:$('#nReEmail').value.trim().toLowerCase(), password:$('#nRePass').value});
-    msg('#navMsg', data.message, 'ok');
-    navSwitch('login');
+    const user = $('#nReUser').value.trim().toLowerCase();
+    const email = $('#nReEmail').value.trim().toLowerCase();
+    const pass = $('#nRePass').value;
+    await api('POST','/register',{username:user, email:email, password:pass});
+    await loginInto(user, pass);
+    msg('#navMsg', 'Conta criada! Você já está logado.', 'ok');
   }catch(err){ msg('#navMsg', err.message, 'err'); }
   return false;
 }
 
 function showAcct(){
+  $('#hero').classList.add('hidden');
+  $('#btnSair').classList.remove('hidden');
   $('#area').classList.remove('hidden');
   $('#acctPanel').classList.remove('hidden');
   $('#payPanel').classList.add('hidden');
@@ -381,7 +392,7 @@ function statusPill(s){
 }
 
 function renderAcct(){
-  $('#meUser').textContent = session.email || session.username;
+  $('#meUser').textContent = session.username || session.email;
   $('#meStatus').innerHTML = statusPill(session.status);
   $('#meSub').textContent = session.endpoint || '—';
   $('#mePort').textContent = session.port || '—';
@@ -390,6 +401,13 @@ function renderAcct(){
   $('#subInp').value = sub;
   const domain = (session.endpoint && session.endpoint.split('.').slice(1).join('.')) || '';
   $('#subSuffix').textContent = domain ? '.'+domain : '';
+  const uemail = (session.email || '').toLowerCase();
+  if(uemail && String(session.username).toLowerCase() === uemail){
+    $('#userBox').style.display = '';
+    $('#unInp').value = session.username.split('@')[0];
+  }else{
+    $('#userBox').style.display = 'none';
+  }
 }
 
 async function doSetSub(e){
@@ -417,15 +435,32 @@ async function doChangePass(e){
   return false;
 }
 
+async function doUserName(e){
+  e.preventDefault();
+  try{
+    const nu = $('#unInp').value.trim().toLowerCase();
+    session = await api('POST','/me/username',{newUsername:nu});
+    try{ localStorage.setItem('tunnel.user', JSON.stringify(session)); }catch(_){}
+    renderAcct();
+    const m = $('#unMsg'); m.className='msg show ok';
+    m.textContent = 'Usuário de login alterado para "'+session.username+'". Use-o para entrar (o e-mail continua valendo).';
+    setTimeout(()=> m.className='msg', 5000);
+  }catch(err){ const m=$('#unMsg'); m.textContent='Erro: '+err.message; m.className='msg show err'; }
+  return false;
+}
+
 async function doCheckout(e){
   e.preventDefault();
   try{
-    const plan = await api('GET','/plan');
-    $('#coPrice').textContent = plan.price.toFixed(2).replace('.', ',');
+    const sel = $('#coPlan');
+    const planId = (sel && sel.value) || (plans[0] && plans[0].id) || '30d';
+    const plan = plans.find(p=>p.id===planId) || plans[0] || {price:0};
+    if(plan.price > 0){ $('#coBtnPrice').textContent = plan.price.toFixed(2).replace('.', ','); }
     const data = await api('POST','/checkout',{
       name:$('#coName').value,
       email:$('#coEmail').value || null,
       cpf:$('#coCpf').value.replace(/\D/g,''),
+      planId: planId,
     });
     $('#acctPanel').classList.add('hidden');
     $('#payPanel').classList.remove('hidden');
@@ -502,20 +537,90 @@ function setLink(sel, url, label){
   else{ a.href = '#'; a.textContent = 'Em breve'; a.classList.add('dlpending'); }
 }
 
-async function initPlan(){ return api('GET','/plan'); }
+async function renderPlans(){
+  try{
+    const data = await api('GET','/plans');
+    plans = (data.plans && data.plans.length) ? data.plans : plans;
+  }catch(_){}
+  if(!plans.length){
+    plans = [
+      {id:'30d',  name:'30 dias', price:25,  days:30},
+      {id:'90d',  name:'90 dias', price:70,  days:90},
+      {id:'365d', name:'Anual',   price:150, days:365},
+    ];
+  }
+  const feats = [
+    ['1 dispositivo USB simultâneo','Subdomínio exclusivo','Porta dedicada','App de conexão'],
+    ['1 dispositivo USB simultâneo','Subdomínio exclusivo','Porta dedicada','App de conexão'],
+    ['1 dispositivo USB simultâneo','Subdomínio exclusivo','Porta dedicada','App de conexão','Suporte prioritário'],
+  ];
+  const grid = $('#plansGrid');
+  grid.innerHTML = '';
+  plans.forEach((p, i)=>{
+    const card = document.createElement('div');
+    card.className = 'card price';
+    card.innerHTML =
+      '<h3>'+p.name+'</h3>'+
+      '<p><span class="price">R$ '+p.price.toFixed(2).replace('.', ',')+'</span> <small>/ '+p.days+' dias</small></p>'+
+      '<ul>'+feats[i % feats.length].map(f=>'<li>'+f+'</li>').join('')+'</ul>'+
+      '<a class="btn cta assin" href="#" data-plan="'+p.id+'" onclick="return assinarPlan(this)">Assinar agora</a>';
+    grid.appendChild(card);
+  });
+  const sel = $('#coPlan');
+  if(sel){
+    sel.innerHTML = plans.map(p=>'<option value="'+p.id+'">'+p.name+' — R$ '+p.price.toFixed(2).replace('.', ',')+'</option>').join('');
+    sel.onchange = updateCoPrice;
+  }
+  updateCoPrice();
+}
 
-function logout(){
+function updateCoPrice(){
+  const sel = $('#coPlan');
+  if(!sel) return;
+  const p = plans.find(x=>x.id === sel.value) || plans[0];
+  if(p && p.price > 0){ $('#coBtnPrice').textContent = p.price.toFixed(2).replace('.', ','); }
+}
+
+function assinarPlan(el){
+  const pid = el.getAttribute('data-plan');
+  if(!token){
+    try{ sessionStorage.setItem('tunnel.plan', pid); }catch(_){}
+    openAuth('login');
+    return false;
+  }
+  showAcct();
+  const sel = $('#coPlan');
+  if(sel){ sel.value = pid; updateCoPrice(); }
+  const box = $('#extendBox');
+  if(box) box.scrollIntoView({behavior:'smooth'});
+  return false;
+}
+
+function applySavedPlan(){
+  let pid = null;
+  try{ pid = sessionStorage.getItem('tunnel.plan') || null; }catch(_){}
+  if(!pid) return;
+  try{ sessionStorage.removeItem('tunnel.plan'); }catch(_){}
+  const sel = $('#coPlan');
+  if(sel && plans.some(p=>p.id === pid)){ sel.value = pid; updateCoPrice(); }
+  setTimeout(()=>{ const box = $('#extendBox'); if(box) box.scrollIntoView({behavior:'smooth'}); }, 150);
+}
+
+async function logout(){
   token = null; session = null; clearInterval(pollTimer);
   try{ localStorage.removeItem('tunnel.token'); localStorage.removeItem('tunnel.user'); }catch(_){}
+  $('#hero').classList.remove('hidden');
+  $('#btnSair').classList.add('hidden');
   $('#area').classList.add('hidden');
   $('#acctPanel').classList.add('hidden');
   $('#payPanel').classList.add('hidden');
   $('#dropAuth').classList.remove('hidden');
   $('#dropMenu').classList.add('hidden');
+  await loadDownloads();
 }
 
 (async function boot(){
-  try{ const p = await api('GET','/plan'); setPlan(p); }catch(_){}
+  await renderPlans();
   await loadDownloads();
   try{
     const saved = localStorage.getItem('tunnel.token');
@@ -528,13 +633,6 @@ function logout(){
     location.hash = '';
   }
 })();
-
-function setPlan(p){
-  $('#planName').textContent = p.name;
-  $('#planPrice').textContent = 'R$ ' + p.price.toFixed(2).replace('.', ',');
-  $('#planDays').textContent = p.days;
-  $('#coPrice').textContent = p.price.toFixed(2).replace('.', ',');
-}
 </script>
 </body>
 </html>

@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS resets (
 """
 
 EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
+USERNAME_RE = re.compile(r"^[a-z0-9._-]{3,32}$")
 
 
 def connect():
@@ -214,22 +215,38 @@ def allocate_endpoints(conn, user_id):
 
 # --- conta -------------------------------------------------------------
 
-def register_user(raw_email, password):
-    email = (raw_email or "").strip().lower()
-    if not EMAIL_RE.match(email):
-        raise ValueError("e-mail inválido")
+def register_user(identifier, password, email=""):
+    identifier = (identifier or "").strip().lower()
+    email = (email or "").strip().lower()
     if len(password) < 6:
         raise ValueError("senha muito curta (mínimo 6 caracteres)")
+    if "@" in identifier:
+        if not EMAIL_RE.match(identifier):
+            raise ValueError("e-mail inválido")
+        username = identifier
+        email = email or identifier
+    else:
+        if not USERNAME_RE.match(identifier):
+            raise ValueError("usuário inválido (use 3 a 32 caracteres: letras, números, . _ -)")
+        username = identifier
+    if email and not EMAIL_RE.match(email):
+        raise ValueError("e-mail inválido")
     now = iso(utcnow())
     with connect() as conn:
+        exists = conn.execute(
+            "SELECT 1 FROM users WHERE username = ? OR (email IS NOT NULL AND email = ?)",
+            (username, email),
+        ).fetchone()
+        if exists:
+            raise ValueError("usuário já cadastrado")
         try:
             conn.execute(
                 "INSERT INTO users (username, email, password, status, registered_at) VALUES (?, ?, ?, 'pending', ?)",
-                (email, email, hash_password(password), now),
+                (username, email or None, hash_password(password), now),
             )
         except sqlite3.IntegrityError:
-            raise ValueError("e-mail já cadastrado")
-    return get_user(email)
+            raise ValueError("usuário já cadastrado")
+    return get_user(username)
 
 
 def get_user(identifier):
@@ -247,15 +264,34 @@ def get_by_token(token):
     return dict(row) if row else None
 
 
-def login_user(raw_email, password):
-    email = (raw_email or "").strip().lower()
-    rec = get_user(email)
+def set_username(identifier, new_username):
+    identifier = (identifier or "").strip().lower()
+    new_username = (new_username or "").strip().lower()
+    if not USERNAME_RE.match(new_username):
+        raise ValueError("usuário inválido (use 3 a 32 caracteres: letras, números, . _ -)")
+    rec = get_user(identifier)
+    if not rec:
+        raise ValueError("usuário inválido")
+    with connect() as conn:
+        exists = conn.execute(
+            "SELECT 1 FROM users WHERE username = ? AND id != ?",
+            (new_username, rec["id"]),
+        ).fetchone()
+        if exists:
+            raise ValueError("usuário já em uso")
+        conn.execute("UPDATE users SET username = ? WHERE id = ?", (new_username, rec["id"]))
+    return get_user(new_username)
+
+
+def login_user(raw_identifier, password):
+    identifier = (raw_identifier or "").strip().lower()
+    rec = get_user(identifier)
     if not rec or not verify_password(password, rec["password"]):
-        raise ValueError("e-mail ou senha inválidos")
+        raise ValueError("usuário ou senha inválidos")
     with connect() as conn:
         if not rec.get("token"):
             conn.execute("UPDATE users SET token = ? WHERE id = ?", (new_token(), rec["id"]))
-    return get_user(email)
+    return get_user(identifier)
 
 
 def effective_status(rec):
@@ -392,13 +428,67 @@ def add_session(user_id, client_ip, status="connected"):
         )
 
 
-def end_session(user_id):
-    now = iso(utcnow())
+SESSION_LEASE_SECONDS = 90
+
+
+def _expire_stale(user_id, cutoff):
     with connect() as conn:
         conn.execute(
-            "UPDATE sessions SET ended_at = ?, status = 'ended' WHERE key_id = ? AND ended_at IS NULL",
-            (now, user_id),
+            "UPDATE sessions SET ended_at = ?, status = 'ended' WHERE key_id = ? "
+            "AND status = 'connected' AND ended_at IS NULL AND started_at < ?",
+            (iso(utcnow()), user_id, cutoff),
         )
+
+
+def _holder(user_id, cutoff):
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT client_ip FROM sessions WHERE key_id = ? AND status = 'connected' "
+            "AND ended_at IS NULL AND started_at >= ? ORDER BY id DESC LIMIT 1",
+            (user_id, cutoff),
+        ).fetchone()
+    return row["client_ip"] if row else None
+
+
+def held_by_other(user_id, instance_id):
+    cutoff = iso(utcnow() - timedelta(seconds=SESSION_LEASE_SECONDS))
+    _expire_stale(user_id, cutoff)
+    holder = _holder(user_id, cutoff)
+    return bool(holder) and holder != instance_id
+
+
+def claim_tunnel(user_id, instance_id):
+    cutoff = iso(utcnow() - timedelta(seconds=SESSION_LEASE_SECONDS))
+    _expire_stale(user_id, cutoff)
+    holder = _holder(user_id, cutoff)
+    if holder:
+        if holder == instance_id:
+            with connect() as conn:
+                conn.execute(
+                    "UPDATE sessions SET started_at = ? WHERE key_id = ? "
+                    "AND status = 'connected' AND ended_at IS NULL AND client_ip = ?",
+                    (iso(utcnow()), user_id, instance_id),
+                )
+            return True
+        return False
+    add_session(user_id, instance_id)
+    return True
+
+
+def end_session(user_id, instance_id=None):
+    now = iso(utcnow())
+    with connect() as conn:
+        if instance_id:
+            conn.execute(
+                "UPDATE sessions SET ended_at = ?, status = 'ended' WHERE key_id = ? "
+                "AND ended_at IS NULL AND client_ip = ?",
+                (now, user_id, instance_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE sessions SET ended_at = ?, status = 'ended' WHERE key_id = ? AND ended_at IS NULL",
+                (now, user_id),
+            )
 
 
 def user_sessions(user_id):
@@ -411,13 +501,13 @@ def user_sessions(user_id):
 
 # --- pagamentos / plano -----------------------------------------------
 
-def record_payment(username, asaas_payment_id, customer_id, value, days, payload):
+def record_payment(username, asaas_payment_id, customer_id, value, days, payload, plan_name="Base"):
     now = iso(utcnow())
     with connect() as conn:
         conn.execute(
             "INSERT INTO payments (username, asaas_payment_id, asaas_customer_id, plan_name, value, days, payload, created_at) "
-            "VALUES (?, ?, ?, 'Base', ?, ?, ?, ?)",
-            (username, asaas_payment_id, customer_id, value, days, payload, now),
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (username, asaas_payment_id, customer_id, plan_name, value, days, payload, now),
         )
         row = conn.execute(
             "SELECT id FROM payments WHERE asaas_payment_id = ?", (asaas_payment_id,)

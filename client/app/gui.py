@@ -1,18 +1,25 @@
+import base64
+import io
 import os
-import re
 import queue
 import threading
 import tkinter as tk
-from tkinter import font as tkfont, messagebox
+import uuid
+
+import customtkinter as ctk
+from PIL import Image
+from tkinter import messagebox
 
 from . import creds, logo, usb
 from .api import Api, ApiError
-from .config import API_BASE, DATA_DIR
+from .config import API_BASE, APP_NAME, DATA_DIR, VERSION
 from .tunnel import Tunnel
 
 BG = "#0f0d15"
 PANEL = "#171422"
-PANEL2 = "#1d192b"
+PANEL2 = "#1e192e"
+HEADER_BG = "#151229"
+LINE = "#2a2440"
 ACCENT = "#7c5cff"
 ACCENT_DARK = "#5e44d6"
 TEXT = "#eceaf2"
@@ -24,42 +31,51 @@ WARN = "#ffb454"
 FONT = "Segoe UI"
 
 
-class App(tk.Tk):
+class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("USB FIX")
-        self.geometry("460x660")
-        self.minsize(460, 620)
-        self.configure(bg=BG)
+        self.geometry("420x640")
+        self.minsize(400, 600)
+        self.configure(fg_color=BG)
         self.api = Api(self._read_server())
         self.tunnel = Tunnel()
         self.tunnel.on_change(self._on_tunnel_change)
         self.user = None
+        self._hb_on = False
+        self.instance = self._load_instance()
         self._bg_tasks = queue.Queue()
-        self._font_title = tkfont.Font(family=FONT, size=20, weight="bold")
-        self._font_h1 = tkfont.Font(family=FONT, size=15, weight="bold")
-        self._font_body = tkfont.Font(family=FONT, size=10)
-        self._font_small = tkfont.Font(family=FONT, size=9)
-        self._font_btn = tkfont.Font(family=FONT, size=10, weight="bold")
+        self._font_title = ctk.CTkFont(family=FONT, size=19, weight="bold")
+        self._font_h1 = ctk.CTkFont(family=FONT, size=16, weight="bold")
+        self._font_h2 = ctk.CTkFont(family=FONT, size=13, weight="bold")
+        self._font_body = ctk.CTkFont(family=FONT, size=10)
+        self._font_small = ctk.CTkFont(family=FONT, size=9)
+        self._font_btn = ctk.CTkFont(family=FONT, size=10, weight="bold")
+        self._font_mono = ctk.CTkFont(family="Consolas", size=12)
 
         self._logo_img = None
         try:
-            self._logo_img = tk.PhotoImage(data=logo.LOGO_B64)
+            raw = base64.b64decode(logo.LOGO_B64)
+            img = Image.open(io.BytesIO(raw))
+            w, h = img.size
+            ch = 26
+            self._logo_img = ctk.CTkImage(light_image=img, dark_image=img, size=(int(w * ch / h), ch))
         except Exception:
             self._logo_img = None
-        if self._logo_img:
-            try:
-                self.iconphoto(True, tk.PhotoImage(data=logo.ICON_B64))
-            except Exception:
-                pass
+        try:
+            self.iconphoto(True, tk.PhotoImage(data=logo.ICON_B64))
+            self._icon16 = tk.PhotoImage(data=logo.ICON_B64)
+            self.iconphoto(False, self._icon16)
+        except Exception:
+            pass
 
-        self._build_splash()
+        self._build_splash_win()
         self._build_login()
         self._build_register()
         self._build_server_dialog()
         self._build_portal()
 
-        self._show_splash()
+        self._open_splash()
         self.poll_queue()
         self.after(1500, self._after_splash)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -79,6 +95,22 @@ class App(tk.Tk):
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         with open(DATA_DIR / "server.txt", "w", encoding="utf-8") as fh:
             fh.write(value.strip() or API_BASE)
+
+    def _load_instance(self):
+        try:
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            p = DATA_DIR / "instance.txt"
+            value = p.read_text(encoding="utf-8").strip()
+            if value:
+                return value
+        except Exception:
+            pass
+        value = uuid.uuid4().hex
+        try:
+            (DATA_DIR / "instance.txt").write_text(value, encoding="utf-8")
+        except Exception:
+            pass
+        return value
 
     def poll_queue(self):
         try:
@@ -105,25 +137,53 @@ class App(tk.Tk):
         for f in frames:
             f.pack_forget()
 
-    def _logo_label(self, parent, pady):
+    def _logo_pack(self, parent):
         if self._logo_img:
-            return tk.Label(parent, image=self._logo_img, bg=BG)
-        return tk.Label(parent, text="⚡", bg=BG, fg=ACCENT, font=("Segoe UI", 30))
+            return ctk.CTkLabel(parent, text="", image=self._logo_img, fg_color="transparent")
+        return ctk.CTkLabel(parent, text="⚡", text_color=ACCENT, font=("Segoe UI", 24))
 
-    def _show_splash(self):
-        self.splash.pack(fill="both", expand=True)
+    def _head_bar(self, parent, right_builder=None):
+        bar = ctk.CTkFrame(parent, fg_color=HEADER_BG, corner_radius=0)
+        bar.pack(fill="x", side="top")
+        row = ctk.CTkFrame(bar, fg_color=HEADER_BG, corner_radius=0)
+        row.pack(fill="x", padx=24, pady=(13, 13))
+        self._logo_pack(row).pack(side="left", padx=(0, 10))
+        ctk.CTkLabel(row, text="USB FIX", text_color=TEXT, font=self._font_h2).pack(side="left")
+        ctk.CTkLabel(row, text="acesso remoto USB", text_color=MUTED,
+                     font=self._font_small).pack(side="left", padx=(12, 0), pady=(5, 0))
+        if right_builder:
+            right_builder(row)
+        ctk.CTkFrame(parent, height=3, fg_color=ACCENT, corner_radius=0).pack(fill="x", side="top")
+
+    def _open_splash(self):
+        self.withdraw()
         for s in (self.login, self.register, self.portal):
             s.pack_forget()
+        self.splash_win.deiconify()
+        self.splash_win.lift()
+        self._draw_spinner()
+        self.after(2600, self._after_splash)
+
+    def _close_splash_win(self):
+        if getattr(self, "splash_win", None) and self.splash_win.winfo_exists():
+            try:
+                self.splash_win.destroy()
+            except Exception:
+                pass
+        self.splash_win = None
+        self.deiconify()
 
     def _after_splash(self):
         saved = creds.load()
         if saved and saved["token"]:
             self.api.set_token(saved["token"])
-            self.bg(self.api.me, self._me_done)
+            self.bg(self.api.me, self._me_done, self.instance)
         else:
+            self._close_splash_win()
             self._show_login()
 
     def _me_done(self, result, err):
+        self._close_splash_win()
         if err is None and result:
             self.user = result
             self._show_portal()
@@ -132,127 +192,176 @@ class App(tk.Tk):
             self._show_login()
 
     def _show_login(self, info=None):
-        self.clear(self.splash, self.register, self.portal)
+        self.clear(self.register, self.portal)
         self.login.pack(fill="both", expand=True)
         if info:
-            self.login_info.configure(text=info, fg=OK)
+            self.login_info.configure(text=info, text_color=OK)
         self.user_entry.focus_set()
 
     def _show_register(self):
-        self.clear(self.splash, self.login, self.portal)
+        self.clear(self.login, self.portal)
         self.register.pack(fill="both", expand=True)
         self.reg_user.focus_set()
 
     def _show_portal(self):
-        self.clear(self.splash, self.login, self.register)
+        self.clear(self.login, self.register)
         self.portal.pack(fill="both", expand=True)
         self._refresh_portal()
 
-    def _build_splash(self):
-        self.splash = tk.Frame(self, bg=BG)
-        self._logo_label(self.splash, pady=(180, 4)).pack(pady=(180, 4))
-        tk.Label(self.splash, text="USB FIX", bg=BG, fg=TEXT, font=self._font_title).pack()
-        tk.Label(self.splash, text="USB remoto por assinatura", bg=BG, fg=MUTED, font=self._font_small).pack(pady=(2, 0))
-        bar = tk.Frame(self.splash, bg=BG)
-        bar.pack(pady=30)
-        self._spinner = tk.Canvas(bar, width=18, height=18, bg=BG, highlightthickness=0)
-        self._spinner.pack(pady=20)
+    def _build_splash_win(self):
+        self.splash_win = ctk.CTkToplevel(self)
+        self.splash_win.withdraw()
+        self.splash_win.configure(fg_color=BG)
+        self.splash_win.resizable(False, False)
+        self.splash_win.overrideredirect(True)
+        w, h = 380, 230
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        self.splash_win.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2 - 30}")
+        body = ctk.CTkFrame(self.splash_win, fg_color=BG, corner_radius=0)
+        body.pack(fill="both", expand=True)
+        ctk.CTkFrame(self.splash_win, height=4, fg_color=ACCENT, corner_radius=0).pack(fill="x", side="top")
+        ctk.CTkFrame(body, height=46, fg_color=HEADER_BG, corner_radius=0).pack(fill="x")
+        self._logo_pack(body).pack(pady=(8, 0))
+        ctk.CTkLabel(body, text=APP_NAME, text_color=TEXT, font=self._font_title).pack(pady=(10, 0))
+        ctk.CTkLabel(body, text="USB remoto por assinatura", text_color=MUTED,
+                     font=self._font_small).pack(pady=(2, 14))
+        self.spinner = ctk.CTkProgressBar(body, mode="indeterminate", width=150, height=6,
+                                          fg_color=PANEL2, progress_color=ACCENT, corner_radius=3)
+        self.spinner.pack()
+        ctk.CTkLabel(body, text=f"v{VERSION}", text_color="#5a5670",
+                     font=self._font_small).pack(side="bottom", pady=(0, 12))
+        self.splash_win.protocol("WM_DELETE_WINDOW", lambda: None)
 
-    def _draw_spinner(self, i=0):
-        self._spinner.delete("all")
-        for j in range(8):
-            color = ACCENT if j == i % 8 else PANEL2
-            self._spinner.create_oval(2 + j * 2, 0, 6 + j * 2, 4, fill=color, outline="")
-        self.after(90, lambda: self._draw_spinner(i + 1))
+    def _draw_spinner(self):
+        bar = getattr(self, "spinner", None)
+        if bar and bar.winfo_exists():
+            try:
+                bar.start()
+            except Exception:
+                pass
+
+    def _label(self, parent, text, **kw):
+        defaults = dict(text_color=TEXT, font=self._font_small, anchor="w")
+        defaults.update(kw)
+        return ctk.CTkLabel(parent, text=text, **defaults)
+
+    def _entry(self, parent, show=None, **kw):
+        defaults = dict(fg_color=PANEL2, border_color=LINE, border_width=1,
+                        text_color=TEXT, font=self._font_body, corner_radius=8)
+        defaults.update(kw)
+        if show:
+            defaults["show"] = show
+        return ctk.CTkEntry(parent, **defaults)
 
     def _build_login(self):
-        self.login = tk.Frame(self, bg=BG)
-        pad = tk.Frame(self.login, bg=BG, width=380)
-        pad.pack(fill="both", expand=True, padx=40)
+        self.login = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
+        self._head_bar(self.login)
+        pad = ctk.CTkFrame(self.login, fg_color=BG, corner_radius=0)
+        pad.pack(fill="both", expand=True, padx=34)
+        card = ctk.CTkFrame(pad, fg_color=PANEL, corner_radius=14, border_width=1, border_color=LINE)
+        card.pack(fill="both", expand=True, pady=(26, 10))
+        inner = ctk.CTkFrame(card, fg_color=PANEL, corner_radius=0)
+        inner.pack(fill="both", expand=True, padx=24, pady=24)
 
-        self._logo_label(pad, pady=(44, 0)).pack(pady=(44, 0))
-        tk.Label(pad, text="USB FIX", bg=BG, fg=TEXT, font=self._font_title).pack(pady=(4, 2))
-        tk.Label(pad, text="Entre com sua conta", bg=BG, fg=MUTED, font=self._font_small).pack(pady=(0, 16))
+        ctk.CTkLabel(inner, text="Entrar", text_color=TEXT, font=self._font_h1,
+                     anchor="w").pack(fill="x")
+        ctk.CTkLabel(inner, text="Acesse sua conta para conectar seus dispositivos", text_color=MUTED,
+                     font=self._font_small, anchor="w").pack(fill="x", pady=(2, 16))
 
-        self.login_err = tk.Label(pad, text="", bg=BG, fg=ERR, font=self._font_small, wraplength=340, justify="left")
+        self.login_err = ctk.CTkLabel(inner, text="", text_color=ERR, font=self._font_small,
+                                      wraplength=300, justify="left")
         self.login_err.pack(fill="x", pady=(0, 4))
-        self.login_info = tk.Label(pad, text="", bg=BG, fg=OK, font=self._font_small, wraplength=340, justify="left")
-        self.login_info.pack(fill="x", pady=(0, 4))
+        self.login_info = ctk.CTkLabel(inner, text="", text_color=OK, font=self._font_small,
+                                       wraplength=300, justify="left")
+        self.login_info.pack(fill="x", pady=(0, 8))
 
-        tk.Label(pad, text="E-mail", bg=BG, fg=MUTED, font=self._font_small, anchor="w").pack(fill="x")
-        self.user_entry = tk.Entry(pad, bg=PANEL2, fg=TEXT, insertbackground=TEXT, relief="flat",
-                                   font=("Consolas", 13), highlightthickness=1, highlightbackground=PANEL2)
-        self.user_entry.pack(fill="x", pady=(2, 6), ipady=7)
+        ctk.CTkLabel(inner, text="Usuário", text_color=MUTED, font=self._font_small, anchor="w").pack(fill="x")
+        self.user_entry = self._entry(inner, font=self._font_mono)
+        self.user_entry.pack(fill="x", pady=(4, 10), ipady=2)
 
-        tk.Label(pad, text="Senha", bg=BG, fg=MUTED, font=self._font_small, anchor="w").pack(fill="x")
-        self.pass_entry = tk.Entry(pad, bg=PANEL2, fg=TEXT, insertbackground=TEXT, relief="flat", show="•",
-                                   font=("Consolas", 13), highlightthickness=1, highlightbackground=PANEL2)
-        self.pass_entry.pack(fill="x", pady=(2, 10), ipady=7)
+        ctk.CTkLabel(inner, text="Senha", text_color=MUTED, font=self._font_small, anchor="w").pack(fill="x")
+        self.pass_entry = self._entry(inner, show="•", font=self._font_mono)
+        self.pass_entry.pack(fill="x", pady=(4, 12), ipady=2)
         self.pass_entry.bind("<Return>", lambda e: self._do_login())
 
-        self.btn_login = tk.Button(pad, text="Entrar", command=self._do_login,
-                                   bg=ACCENT, fg="white", activebackground=ACCENT_DARK,
-                                   activeforeground="white", relief="flat", font=self._font_btn, cursor="hand2")
-        self.btn_login.pack(fill="x", ipady=10, pady=(4, 8))
+        self.save_login_var = tk.BooleanVar(value=True)
+        self.chk_save = ctk.CTkCheckBox(inner, text="Salvar login neste computador", variable=self.save_login_var,
+                                        onvalue=True, offvalue=False, fg_color=ACCENT, hover_color=ACCENT_DARK,
+                                        checkmark_color="white", border_color=MUTED, text_color=MUTED,
+                                        font=self._font_small, corner_radius=6)
+        self.chk_save.pack(fill="x", pady=(0, 14))
 
-        link_register = tk.Label(pad, text="Não tem conta? Criar conta", bg=BG, fg=ACCENT,
-                                 font=self._font_small, cursor="hand2")
-        link_register.pack(pady=(4, 0))
+        self.btn_login = ctk.CTkButton(inner, text="Entrar", command=self._do_login, height=42,
+                                       fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
+                                       font=self._font_btn, corner_radius=10, cursor="hand2")
+        self.btn_login.pack(fill="x", pady=(0, 6))
+
+        link_register = ctk.CTkLabel(inner, text="Não tem conta? Criar conta", text_color=ACCENT,
+                                     font=self._font_small, cursor="hand2")
+        link_register.pack(pady=(10, 0))
         link_register.bind("<Button-1>", lambda e: self._show_register())
 
-        self.link_server = tk.Label(pad, text="Servidor", bg=BG, fg=MUTED, font=self._font_small, cursor="hand2")
-        self.link_server.pack(side="bottom", pady=(0, 26))
+        self.link_server = ctk.CTkLabel(self.login, text="Servidor", text_color=MUTED,
+                                        font=self._font_small, cursor="hand2")
+        self.link_server.pack(side="bottom", pady=(0, 24))
         self.link_server.bind("<Button-1>", lambda e: self._open_server_dialog())
+        ctk.CTkLabel(self.login, text=f"USB FIX v{VERSION}", text_color="#5a5670",
+                     font=self._font_small).pack(side="bottom", pady=(0, 8))
 
     def _build_register(self):
-        self.register = tk.Frame(self, bg=BG)
-        pad = tk.Frame(self.register, bg=BG, width=380)
-        pad.pack(fill="both", expand=True, padx=40)
+        self.register = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
+        self._head_bar(self.register)
+        pad = ctk.CTkFrame(self.register, fg_color=BG, corner_radius=0)
+        pad.pack(fill="both", expand=True, padx=34)
+        card = ctk.CTkFrame(pad, fg_color=PANEL, corner_radius=14, border_width=1, border_color=LINE)
+        card.pack(fill="both", expand=True, pady=(26, 10))
+        inner = ctk.CTkFrame(card, fg_color=PANEL, corner_radius=0)
+        inner.pack(fill="both", expand=True, padx=24, pady=22)
 
-        self._logo_label(pad, pady=(44, 0)).pack(pady=(44, 0))
-        tk.Label(pad, text="CRIAR CONTA", bg=BG, fg=TEXT, font=self._font_title).pack(pady=(4, 2))
-        tk.Label(pad, text="A conta fica ativa após a liberação do vendedor",
-                 bg=BG, fg=MUTED, font=self._font_small).pack(pady=(0, 16))
+        ctk.CTkLabel(inner, text="Criar conta", text_color=TEXT, font=self._font_h1,
+                     anchor="w").pack(fill="x")
+        ctk.CTkLabel(inner, text="A conta fica ativa após a liberação do vendedor", text_color=MUTED,
+                     font=self._font_small, anchor="w").pack(fill="x", pady=(2, 16))
 
-        self.reg_err = tk.Label(pad, text="", bg=BG, fg=ERR, font=self._font_small, wraplength=340, justify="left")
+        self.reg_err = ctk.CTkLabel(inner, text="", text_color=ERR, font=self._font_small,
+                                    wraplength=300, justify="left")
         self.reg_err.pack(fill="x", pady=(0, 4))
 
-        tk.Label(pad, text="E-mail", bg=BG, fg=MUTED, font=self._font_small, anchor="w").pack(fill="x")
-        self.reg_user = tk.Entry(pad, bg=PANEL2, fg=TEXT, insertbackground=TEXT, relief="flat",
-                                 font=("Consolas", 13), highlightthickness=1, highlightbackground=PANEL2)
-        self.reg_user.pack(fill="x", pady=(2, 6), ipady=7)
+        ctk.CTkLabel(inner, text="Usuário", text_color=MUTED, font=self._font_small, anchor="w").pack(fill="x")
+        self.reg_user = self._entry(inner, font=self._font_mono)
+        self.reg_user.pack(fill="x", pady=(4, 8), ipady=2)
 
-        tk.Label(pad, text="Senha", bg=BG, fg=MUTED, font=self._font_small, anchor="w").pack(fill="x")
-        self.reg_pass = tk.Entry(pad, bg=PANEL2, fg=TEXT, insertbackground=TEXT, relief="flat", show="•",
-                                 font=("Consolas", 13), highlightthickness=1, highlightbackground=PANEL2)
-        self.reg_pass.pack(fill="x", pady=(2, 6), ipady=7)
+        ctk.CTkLabel(inner, text="E-mail", text_color=MUTED, font=self._font_small, anchor="w").pack(fill="x")
+        self.reg_mail = self._entry(inner, font=self._font_mono)
+        self.reg_mail.pack(fill="x", pady=(4, 8), ipady=2)
 
-        tk.Label(pad, text="Confirmar senha", bg=BG, fg=MUTED, font=self._font_small, anchor="w").pack(fill="x")
-        self.reg_pass2 = tk.Entry(pad, bg=PANEL2, fg=TEXT, insertbackground=TEXT, relief="flat", show="•",
-                                  font=("Consolas", 13), highlightthickness=1, highlightbackground=PANEL2)
-        self.reg_pass2.pack(fill="x", pady=(2, 10), ipady=7)
-        self.reg_pass2.bind("<Return>", lambda e: self._do_register())
+        ctk.CTkLabel(inner, text="Senha", text_color=MUTED, font=self._font_small, anchor="w").pack(fill="x")
+        self.reg_pass = self._entry(inner, show="•", font=self._font_mono)
+        self.reg_pass.pack(fill="x", pady=(4, 12), ipady=2)
+        self.reg_pass.bind("<Return>", lambda e: self._do_register())
 
-        self.btn_register = tk.Button(pad, text="Criar conta", command=self._do_register,
-                                      bg=ACCENT, fg="white", activebackground=ACCENT_DARK,
-                                      activeforeground="white", relief="flat", font=self._font_btn, cursor="hand2")
-        self.btn_register.pack(fill="x", ipady=10, pady=(4, 8))
+        self.btn_register = ctk.CTkButton(inner, text="Criar conta", command=self._do_register, height=42,
+                                          fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
+                                          font=self._font_btn, corner_radius=10, cursor="hand2")
+        self.btn_register.pack(fill="x", pady=(2, 6))
 
-        back = tk.Label(pad, text="Já tenho conta — voltar ao login", bg=BG, fg=MUTED,
-                        font=self._font_small, cursor="hand2")
-        back.pack(pady=(4, 0))
+        back = ctk.CTkLabel(inner, text="Já tenho conta — voltar ao login", text_color=ACCENT,
+                            font=self._font_small, cursor="hand2")
+        back.pack(pady=(10, 0))
         back.bind("<Button-1>", lambda e: self._show_login())
+        ctk.CTkLabel(self.register, text=f"USB FIX v{VERSION}", text_color="#5a5670",
+                     font=self._font_small).pack(side="bottom", pady=(0, 8))
 
     def _do_login(self):
         username = self.user_entry.get().strip()
         password = self.pass_entry.get()
         if not username or not password:
-            self._login_err("Digite e-mail e senha.")
+            self._login_err("Digite usuário e senha.")
             return
         self.btn_login.configure(state="disabled", text="Entrando…")
         self.login_err.configure(text="")
         self.login_info.configure(text="")
-        self.bg(self.api.login, self._on_login, username, password)
+        self.bg(self.api.login, self._on_login, username, password, self.instance)
 
     def _on_login(self, payload, err):
         self.btn_login.configure(state="normal", text="Entrar")
@@ -260,7 +369,7 @@ class App(tk.Tk):
             self._login_err(f"⚠ {err}")
             return
         self.api.set_token(payload["token"])
-        creds.save(payload["token"], self.user_entry.get().strip())
+        creds.save(payload["token"], self.user_entry.get().strip(), remember=self.save_login_var.get())
         self.user = payload["user"]
         self._show_portal()
 
@@ -269,18 +378,15 @@ class App(tk.Tk):
 
     def _do_register(self):
         username = self.reg_user.get().strip()
+        email = self.reg_mail.get().strip()
         password = self.reg_pass.get()
-        confirm = self.reg_pass2.get()
-        if not username or not password:
-            self.reg_err.configure(text="⚠ Preencha todos os campos.")
-            return
-        if password != confirm:
-            self.reg_err.configure(text="⚠ As senhas não conferem.")
+        if not username or not email or not password:
+            self.reg_err.configure(text="⚠ Preencha usuário, e-mail e senha.")
             return
         self.reg_user_prev = username
         self.btn_register.configure(state="disabled", text="Criando…")
         self.reg_err.configure(text="")
-        self.bg(self.api.register, self._on_register, username, password)
+        self.bg(self.api.register, self._on_register, username, password, email)
 
     def _on_register(self, payload, err):
         self.btn_register.configure(state="normal", text="Criar conta")
@@ -288,30 +394,30 @@ class App(tk.Tk):
             self.reg_err.configure(text=f"⚠ {err}")
             return
         self.reg_user.set("")
+        self.reg_mail.set("")
         self.reg_pass.set("")
-        self.reg_pass2.set("")
         self.user_entry.delete(0, "end")
         self.user_entry.insert(0, self.reg_user_prev or "")
         self._show_login("✓ " + payload.get("message", "conta criada — aguarde a liberação do vendedor."))
 
     def _build_server_dialog(self):
-        self.server_dialog = tk.Toplevel(self)
+        self.server_dialog = ctk.CTkToplevel(self)
         self.server_dialog.withdraw()
         self.server_dialog.title("Servidor")
-        self.server_dialog.configure(bg=BG)
+        self.server_dialog.configure(fg_color=BG)
         self.server_dialog.resizable(False, False)
-        tk.Label(self.server_dialog, text="Endereço do servidor (API)", bg=BG, fg=MUTED,
-                 font=self._font_small).pack(padx=16, pady=(14, 2), anchor="w")
-        self.server_entry = tk.Entry(self.server_dialog, bg=PANEL2, fg=TEXT, insertbackground=TEXT,
-                                     relief="flat", font=self._font_body, highlightthickness=1,
-                                     highlightbackground=PANEL2, width=40)
-        self.server_entry.pack(padx=16, pady=(0, 10))
-        row = tk.Frame(self.server_dialog, bg=BG)
+        ctk.CTkLabel(self.server_dialog, text="Endereço do servidor (API)", text_color=MUTED,
+                     font=self._font_small).pack(padx=16, pady=(14, 2), anchor="w")
+        self.server_entry = self._entry(self.server_dialog, width=360)
+        self.server_entry.pack(padx=16, pady=(0, 12))
+        row = ctk.CTkFrame(self.server_dialog, fg_color=BG, corner_radius=0)
         row.pack(padx=16, pady=(0, 14), fill="x")
-        tk.Button(row, text="Cancelar", command=self.server_dialog.withdraw, bg=PANEL2, fg=TEXT,
-                  relief="flat", font=self._font_small).pack(side="left")
-        tk.Button(row, text="Salvar e reconectar", command=self._save_server_dialog, bg=ACCENT, fg="white",
-                  relief="flat", font=self._font_small).pack(side="right")
+        ctk.CTkButton(row, text="Cancelar", command=self.server_dialog.withdraw, width=110,
+                      fg_color=PANEL2, hover_color="#2a2440", text_color=TEXT,
+                      font=self._font_small, corner_radius=8).pack(side="left")
+        ctk.CTkButton(row, text="Salvar e reconectar", command=self._save_server_dialog, width=160,
+                      fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
+                      font=self._font_small, corner_radius=8).pack(side="right")
         self.server_dialog.transient(self)
 
     def _open_server_dialog(self):
@@ -330,100 +436,110 @@ class App(tk.Tk):
             self.api.set_token(saved["token"])
         self.server_dialog.withdraw()
         self.login_err.configure(text="")
-        self.bg(self.api.me, self._me_done)
+        self.bg(self.api.me, self._me_done, self.instance)
+
+    def _box(self, parent, **kw):
+        defaults = dict(fg_color=PANEL2, border_color=LINE, border_width=1, corner_radius=10)
+        defaults.update(kw)
+        return ctk.CTkFrame(parent, **defaults)
 
     def _build_portal(self):
-        self.portal = tk.Frame(self, bg=BG)
-        pad = tk.Frame(self.portal, bg=BG)
-        pad.pack(fill="both", expand=True, padx=28, pady=18)
+        self.portal = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
+        self._head_bar(self.portal, right_builder=self._pill_builder)
 
-        head = tk.Frame(pad, bg=BG)
-        head.pack(fill="x")
-        self.portal_name = tk.Label(head, text="—", bg=BG, fg=TEXT, font=self._font_h1)
-        self.portal_name.pack(side="left")
-        self.pill = tk.Label(head, text="offline", bg=WARN, fg="#201500", font=self._font_small, padx=10, pady=3)
-        self.pill.pack(side="right")
+        card = ctk.CTkFrame(self.portal, fg_color=PANEL, corner_radius=14, border_width=1, border_color=LINE)
+        card.pack(fill="both", expand=True, padx=22, pady=(18, 10))
+        inner = ctk.CTkFrame(card, fg_color=PANEL, corner_radius=0)
+        inner.pack(fill="both", expand=True, padx=18, pady=18)
 
-        self.key_lbl = tk.Label(pad, text="", bg=BG, fg=MUTED, font=self._font_small, anchor="w")
-        self.key_lbl.pack(fill="x", pady=(4, 0))
-        self.trial_lbl = tk.Label(pad, text="", bg=BG, fg=OK, font=self._font_small, anchor="w")
-        self.trial_lbl.pack(fill="x", pady=(0, 6))
+        self.key_lbl = ctk.CTkLabel(inner, text="", text_color=MUTED, font=self._font_small, anchor="w")
+        self.key_lbl.pack(fill="x", pady=(0, 2))
+        self.trial_lbl = ctk.CTkLabel(inner, text="", text_color=OK, font=self._font_small, anchor="w")
+        self.trial_lbl.pack(fill="x", pady=(0, 12))
 
-        tk.Label(pad, text="Endereço do seu túnel", bg=BG, fg=MUTED, font=self._font_small, anchor="w").pack(fill="x", pady=(6, 2))
-        endpoint = tk.Frame(pad, bg=PANEL)
-        endpoint.pack(fill="x", pady=(0, 10))
-        self.endpoint_lbl = tk.Label(endpoint, text="—", bg=PANEL, fg=TEXT, font=self._font_body,
-                                     padx=12, pady=9, anchor="w")
+        ctk.CTkLabel(inner, text="Seu endereço", text_color=MUTED, font=self._font_small, anchor="w").pack(fill="x", pady=(0, 4))
+        endpoint = self._box(inner)
+        endpoint.pack(fill="x", pady=(0, 12))
+        self.endpoint_lbl = ctk.CTkLabel(endpoint, text="—:—", text_color=TEXT, font=self._font_mono,
+                                         anchor="w", padx=14, pady=10)
         self.endpoint_lbl.pack(side="left", fill="x", expand=True)
-        self.copy_btn = tk.Button(endpoint, text="Copiar", command=self._copy_endpoint, bg=PANEL2, fg=TEXT,
-                                  activebackground="#2a2440", activeforeground=TEXT, relief="flat",
-                                  font=self._font_small, cursor="hand2", padx=12)
-        self.copy_btn.pack(side="right", ipady=8)
+        self.copy_btn = ctk.CTkButton(endpoint, text="Copiar", command=self._copy_endpoint,
+                                      fg_color="transparent", hover_color="#262043", text_color=ACCENT,
+                                      font=self._font_small, corner_radius=8, cursor="hand2", anchor="e", width=72)
+        self.copy_btn.pack(side="right", padx=(0, 6), pady=6)
 
-        cfg = tk.Frame(pad, bg=PANEL)
-        cfg.pack(fill="x", pady=(0, 10))
-        tk.Label(cfg, text="Escolha o nome do seu DNS", bg=PANEL, fg=MUTED, font=self._font_small, anchor="w").pack(fill="x", padx=12, pady=(10, 4))
-        subrow = tk.Frame(cfg, bg=PANEL)
-        subrow.pack(fill="x", padx=12, pady=(0, 10))
-        self.sub_inp = tk.Entry(subrow, bg=PANEL2, fg=TEXT, insertbackground=TEXT, relief="flat",
-                                font=self._font_small, highlightthickness=0)
-        self.sub_inp.pack(side="left", fill="x", expand=True, ipady=5)
-        self.sub_suffix = tk.Label(subrow, text="", bg=PANEL, fg=MUTED, font=self._font_small)
-        self.sub_suffix.pack(side="left", padx=6)
-        self.sub_save = tk.Button(subrow, text="Salvar", command=self._save_subdomain, bg=ACCENT, fg="white",
-                                  activebackground=ACCENT_DARK, activeforeground="white", relief="flat",
-                                  font=self._font_small, cursor="hand2", padx=10)
+        ctk.CTkLabel(inner, text="Escolha seu nome", text_color=MUTED, font=self._font_small, anchor="w").pack(fill="x", pady=(0, 4))
+        cfg = self._box(inner)
+        cfg.pack(fill="x", pady=(0, 12))
+        subrow = ctk.CTkFrame(cfg, fg_color="transparent", corner_radius=0)
+        subrow.pack(fill="x", padx=12, pady=8)
+        self.sub_inp = ctk.CTkEntry(subrow, fg_color=PANEL, border_width=0, text_color=TEXT,
+                                    font=self._font_small, corner_radius=6)
+        self.sub_inp.pack(side="left", fill="x", expand=True, ipady=2, padx=(0, 8))
+        self.sub_suffix = ctk.CTkLabel(subrow, text="", text_color=MUTED, font=self._font_small)
+        self.sub_suffix.pack(side="left", padx=(0, 8))
+        self.sub_save = ctk.CTkButton(subrow, text="Salvar", command=self._save_subdomain, width=74,
+                                      fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
+                                      font=self._font_small, corner_radius=8, cursor="hand2")
         self.sub_save.pack(side="right")
-        self.sub_msg = tk.Label(cfg, text="", bg=PANEL, fg=TEXT, font=self._font_small, anchor="w")
-        self.sub_msg.pack(fill="x", padx=12, pady=(0, 10))
+        self.sub_msg = ctk.CTkLabel(cfg, text="", text_color=TEXT, font=self._font_small, anchor="w")
+        self.sub_msg.pack(fill="x", padx=12, pady=(0, 8))
 
-        cards = tk.Frame(pad, bg=BG)
-        cards.pack(fill="x", pady=(0, 10))
-        self.card_port = self._mini_card(cards, "PORTA PÚBLICA")
-        self.card_usb = self._mini_card(cards, "USB LOCAL")
-        self.card_sub = self._mini_card(cards, "VALIDADE")
+        self.user_sec = ctk.CTkFrame(inner, fg_color="transparent", corner_radius=0)
+        self.user_sec.pack(fill="x", pady=(0, 12))
+        ctk.CTkLabel(self.user_sec, text="Usuário de login", text_color=MUTED, font=self._font_small,
+                     anchor="w").grid(row=0, column=0, sticky="w", pady=(0, 4))
+        userbox = self._box(self.user_sec)
+        brows = ctk.CTkFrame(userbox, fg_color="transparent", corner_radius=0)
+        brows.pack(fill="x", padx=12, pady=8)
+        self.user_inp = ctk.CTkEntry(brows, fg_color=PANEL, border_width=0, text_color=TEXT,
+                                     font=self._font_small, corner_radius=6)
+        self.user_inp.pack(side="left", fill="x", expand=True, ipady=2, padx=(0, 8))
+        self.user_save = ctk.CTkButton(brows, text="Definir", command=self._save_my_username, width=74,
+                                       fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
+                                       font=self._font_small, corner_radius=8, cursor="hand2")
+        self.user_save.pack(side="right")
+        self.user_msg = ctk.CTkLabel(userbox, text="", text_color=MUTED, font=self._font_small, anchor="w")
+        self.user_msg.pack(fill="x", padx=12, pady=(0, 8))
+        self.userbox = userbox
+        self.username_plain = ctk.CTkLabel(self.user_sec, text="", text_color=TEXT,
+                                           font=self._font_mono, anchor="w")
 
-        usbrow = tk.Frame(pad, bg=BG)
-        usbrow.pack(fill="x", pady=(0, 10))
-        tk.Label(usbrow, text="Porta local do USB Redirector", bg=BG, fg=MUTED, font=self._font_small).pack(side="left")
+        usbrow = ctk.CTkFrame(inner, fg_color="transparent", corner_radius=0)
+        usbrow.pack(fill="x", pady=(0, 14))
+        ctk.CTkLabel(usbrow, text="Porta local do USB Redirector", text_color=MUTED,
+                     font=self._font_small).pack(side="left")
         self.local_port_var = tk.StringVar(value=os.getenv("TUNNEL_LOCAL_PORT", "32038"))
-        self.local_port_entry = tk.Entry(usbrow, textvariable=self.local_port_var, bg=PANEL2, fg=TEXT,
-                                         insertbackground=TEXT, relief="flat", justify="center",
-                                         font=("Consolas", 10), highlightthickness=0, width=8)
-        self.local_port_entry.pack(side="right", ipady=4)
+        self.local_port_entry = ctk.CTkEntry(usbrow, textvariable=self.local_port_var, fg_color=PANEL2,
+                                             border_width=0, text_color=TEXT, justify="center",
+                                             font=self._font_small, corner_radius=8, width=92)
+        self.local_port_entry.pack(side="right", ipady=2)
 
-        self.btn_conn = tk.Button(pad, text="Conectar", command=self._toggle_connect, bg=ACCENT, fg="white",
-                                  activebackground=ACCENT_DARK, activeforeground="white", relief="flat",
-                                  font=self._font_btn, cursor="hand2")
-        self.btn_conn.pack(fill="x", ipady=10, pady=(0, 4))
-        self.conn_err = tk.Label(pad, text="", bg=BG, fg=ERR, font=self._font_small, wraplength=380, justify="left")
-        self.conn_err.pack(fill="x", pady=(0, 6))
+        self.btn_conn = ctk.CTkButton(inner, text="Conectar", command=self._toggle_connect, height=42,
+                                      fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
+                                      font=self._font_btn, corner_radius=10, cursor="hand2")
+        self.btn_conn.pack(fill="x", pady=(0, 4))
+        self.conn_err = ctk.CTkLabel(inner, text="", text_color=ERR, font=self._font_small,
+                                     wraplength=330, justify="left")
+        self.conn_err.pack(fill="x")
 
-        hist_head = tk.Frame(pad, bg=BG)
-        hist_head.pack(fill="x")
-        tk.Label(hist_head, text="Histórico de conexões", bg=BG, fg=MUTED, font=self._font_small).pack(side="left")
-        self.hist_lbl = tk.Label(hist_head, text="", bg=BG, fg=MUTED, font=self._font_small)
-        self.hist_lbl.pack(side="right")
-
-        self.hist_box = tk.Frame(pad, bg=BG)
-        self.hist_box.pack(fill="both", expand=True, pady=(4, 8))
-
-        foot = tk.Frame(pad, bg=BG)
-        foot.pack(fill="x")
-        change_lbl = tk.Label(foot, text="Trocar conta", bg=BG, fg=ERR, font=self._font_small, cursor="hand2")
-        change_lbl.pack(side="left")
-        change_lbl.bind("<Button-1>", lambda e: self._change_user())
-        self.change_btn = tk.Button(foot, text="Atualizar", bg=PANEL2, fg=TEXT, activebackground="#2a2440",
-                                    relief="flat", font=self._font_small, command=self._renew)
+        foot = ctk.CTkFrame(self.portal, fg_color="transparent", corner_radius=0)
+        foot.pack(fill="x", padx=22)
+        self.btn_logout = ctk.CTkButton(foot, text="Sair", command=self._logout, width=88, height=34,
+                                        fg_color="#3a1520", hover_color="#4a1f2e", text_color=ERR,
+                                        font=self._font_small, corner_radius=8, cursor="hand2")
+        self.btn_logout.pack(side="left")
+        self.change_btn = ctk.CTkButton(foot, text="Atualizar", command=self._renew, width=110, height=34,
+                                        fg_color=PANEL2, hover_color="#2a2440", text_color=TEXT,
+                                        font=self._font_small, corner_radius=8, cursor="hand2")
         self.change_btn.pack(side="right")
+        ctk.CTkLabel(self.portal, text=f"USB FIX v{VERSION}", text_color="#5a5670",
+                     font=self._font_small).pack(side="bottom", pady=(0, 8))
 
-    def _mini_card(self, parent, title):
-        card = tk.Frame(parent, bg=PANEL, width=110)
-        card.pack(side="left", fill="x", expand=True, padx=(0, 6), ipady=10)
-        tk.Label(card, text=title, bg=PANEL, fg=MUTED, font=self._font_small).pack(pady=(8, 2))
-        value = tk.Label(card, text="—", bg=PANEL, fg=TEXT, font=("Segoe UI", 11, "bold"))
-        value.pack(padx=8)
-        return value
+    def _pill_builder(self, row):
+        self.pill = ctk.CTkLabel(row, text="offline", text_color="#201500", fg_color=WARN,
+                                 font=self._font_small, corner_radius=999, padx=12, height=26)
+        self.pill.pack(side="right")
 
     def _com_number(self, value):
         digits = "".join(c for c in value if c.isdigit())
@@ -433,8 +549,7 @@ class App(tk.Tk):
         self.bg(self._fetch_state, self._render_state)
 
     def _fetch_state(self):
-        me = self.api.me()
-        return {"user": me, "sessions": self.api.sessions()}
+        return {"user": self.api.me(self.instance)}
 
     def _render_state(self, data, err):
         if err:
@@ -443,17 +558,23 @@ class App(tk.Tk):
         self.user = data["user"]
         u = self.user
         domain = u["endpoint"].split(".", 1)[-1] if u.get("endpoint") else ""
-        self.portal_name.configure(text="Meu túnel")
         self.endpoint_lbl.configure(text=f"{u['endpoint']}:{u['port']}" if u.get("endpoint") else "—:—")
         self.key_lbl.configure(text=f"Conta: {u.get('email') or u['username']}")
         self.sub_inp.delete(0, "end")
         self.sub_inp.insert(0, u["subdomain"] or "")
         self.sub_suffix.configure(text=f".{domain}" if domain else "")
-        self.card_port.configure(text=str(u["port"]) if u.get("port") else "—")
-        self.card_usb.configure(text=self.local_port_var.get() or "—")
-        self.card_sub.configure(text=self._format_valid(u))
+        email = (u.get("email") or "").strip().lower()
+        if email and u["username"].strip().lower() == email:
+            self.username_plain.grid_forget()
+            self.user_inp.delete(0, "end")
+            self.user_inp.insert(0, u["username"].split("@")[0])
+            self.user_msg.configure(text="Entre no app com esse nome após definir.", text_color=MUTED)
+            self.userbox.grid(row=1, column=0, sticky="ew")
+        else:
+            self.userbox.grid_forget()
+            self.username_plain.configure(text=f"Usuário de login: {u['username']}")
+            self.username_plain.grid(row=1, column=0, sticky="w")
         self._render_valid(u)
-        self._render_history(data["sessions"])
         self._update_pill()
 
     def _format_valid(self, u):
@@ -463,27 +584,14 @@ class App(tk.Tk):
     def _render_valid(self, u):
         status = u["status"]
         if status == "active":
-            self.trial_lbl.configure(text=f"Ativo até {self._format_valid(u)} · trocas de nome: {u['changesLeft']}")
+            self.trial_lbl.configure(text=f"Ativo até {self._format_valid(u)} · trocas de nome: {u['changesLeft']}",
+                                     text_color=OK)
         elif status == "pending":
-            self.trial_lbl.configure(text="⏳ Conta criada — aguardando liberação do vendedor.", fg=WARN)
+            self.trial_lbl.configure(text="⏳ Conta criada — aguardando liberação do vendedor.", text_color=WARN)
         elif status in ("blocked", "expired"):
-            self.trial_lbl.configure(text="⚠ Conta suspensa — regularize com o fornecedor.", fg=ERR)
+            self.trial_lbl.configure(text="⚠ Conta suspensa — regularize com o fornecedor.", text_color=ERR)
         else:
             self.trial_lbl.configure(text=status)
-
-    def _render_history(self, sessions):
-        for child in self.hist_box.winfo_children():
-            child.destroy()
-        if not sessions:
-            tk.Label(self.hist_box, text="Sem conexões ainda.", bg=BG, fg=MUTED, font=self._font_small).pack(anchor="w")
-            self.hist_lbl.configure(text="")
-            return
-        self.hist_lbl.configure(text=f"{len(sessions)} conexões")
-        for s in sessions[:8]:
-            when = s["started_at"].replace("T", " ")[:16]
-            ip = s.get("client_ip") or "—"
-            tk.Label(self.hist_box, text=f"{when}  ·  {ip}  ·  {s['status']}",
-                     bg=BG, fg=TEXT, font=self._font_small, anchor="w").pack(fill="x", pady=1)
 
     def _copy_endpoint(self):
         self.clipboard_clear()
@@ -501,17 +609,35 @@ class App(tk.Tk):
     def _on_subdomain(self, user, err):
         self.sub_save.configure(state="normal")
         if err:
-            self.sub_msg.configure(text=f"⚠ {err}", fg=ERR)
+            self.sub_msg.configure(text=f"⚠ {err}", text_color=ERR)
             return
-        self.sub_msg.configure(text="Nome atualizado!", fg=OK)
+        self.sub_msg.configure(text="Nome atualizado!", text_color=OK)
+        self.user = user
+        self._refresh_portal()
+
+    def _save_my_username(self):
+        value = self.user_inp.get().strip()
+        if not value:
+            self.user_msg.configure(text="Digite o nome de usuário desejado.", text_color=ERR)
+            return
+        self.user_save.configure(state="disabled")
+        self.bg(self.api.set_my_username, self._on_my_username, value, self.instance)
+
+    def _on_my_username(self, user, err):
+        self.user_save.configure(state="normal")
+        if err:
+            self.user_msg.configure(text=f"⚠ {err}", text_color=ERR)
+            return
+        self.user_msg.configure(text="Usuário de login definido!", text_color=OK)
         self.user = user
         self._refresh_portal()
 
     def _toggle_connect(self):
         if self.tunnel.is_running():
             self.conn_err.configure(text="")
+            self._hb_on = False
             self.tunnel.stop()
-            self.bg(self.api.tunnel_event, lambda r, e: None, "disconnect")
+            self.bg(self.api.tunnel_event, lambda r, e: None, "disconnect", self.instance)
             return
         com = self.local_port_var.get()
         local_port = self._com_number(com)
@@ -526,9 +652,25 @@ class App(tk.Tk):
         try:
             self.tunnel.start(self.user, local_port)
             self.conn_err.configure(text="")
-            self.bg(self.api.tunnel_event, lambda r, e: None, "connect")
+            self.bg(self.api.tunnel_event, self._on_tunnel_event, "connect", self.instance)
         except Exception as exc:
             self.conn_err.configure(text=f"⚠ {exc}")
+
+    def _on_tunnel_event(self, result, err):
+        if err:
+            if self.tunnel.is_running():
+                self.tunnel.stop()
+            self.conn_err.configure(text=f"⚠ {err}")
+            return
+        if not self._hb_on:
+            self._hb_on = True
+            self._heartbeat()
+
+    def _heartbeat(self):
+        if not self._hb_on or not self.tunnel.is_running():
+            return
+        self.bg(self.api.tunnel_event, lambda r, e: None, "connect", self.instance)
+        self.after(30000, self._heartbeat)
 
     def _on_tunnel_change(self, running):
         self.after(0, self._update_pill)
@@ -536,18 +678,32 @@ class App(tk.Tk):
     def _update_pill(self):
         running = self.tunnel.is_running()
         self.btn_conn.configure(text="Desconectar" if running else "Conectar",
-                                bg=ACCENT_DARK if running else ACCENT,
-                                activebackground=ACCENT if running else ACCENT_DARK)
+                                fg_color=ACCENT_DARK if running else ACCENT,
+                                hover_color=ACCENT if running else ACCENT_DARK)
         if running:
-            self.pill.configure(text="online", bg=OK, fg="#00241a")
+            self.pill.configure(text="conectado", text_color="#00241a", fg_color=OK)
+            if self.user and self.user.get("endpoint"):
+                self.endpoint_lbl.configure(text=f"✓ {self.user['endpoint']}:{self.user.get('port')}",
+                                            text_color=OK)
         elif self.user and self.user.get("status") in ("blocked", "expired", "unused", "pending"):
-            self.pill.configure(text="suspensa", bg=ERR, fg="white")
+            self.pill.configure(text="suspensa", text_color="white", fg_color=ERR)
         else:
-            self.pill.configure(text="offline", bg=WARN, fg="#201500")
+            self.pill.configure(text="offline", text_color="#201500", fg_color=WARN)
+            if self.user and self.user.get("endpoint"):
+                self.endpoint_lbl.configure(text=f"{self.user['endpoint']}:{self.user.get('port')}",
+                                            text_color=TEXT)
 
-    def _change_user(self):
+    def _logout(self):
+        self._hb_on = False
         self.tunnel.stop()
+        try:
+            threading.Thread(
+                target=self.api.tunnel_event, args=("disconnect", self.instance), daemon=True
+            ).start()
+        except Exception:
+            pass
         creds.clear()
+        self.user = None
         self.user_entry.delete(0, "end")
         self.pass_entry.delete(0, "end")
         self._show_login()
@@ -557,14 +713,25 @@ class App(tk.Tk):
         if not saved:
             self._show_login()
             return
-        self.bg(self.api.me, self._me_done)
+        self.bg(self.api.me, self._me_done, self.instance)
 
     def _on_close(self):
+        self._hb_on = False
         self.tunnel.stop()
+        try:
+            threading.Thread(
+                target=self.api.tunnel_event, args=("disconnect", self.instance), daemon=True
+            ).start()
+        except Exception:
+            pass
         self.destroy()
 
 
 def main():
+    ctk.set_appearance_mode("dark")
+    ctk.set_default_color_theme("dark-blue")
+    ctk.set_widget_scaling(1.0)
+    ctk.set_window_scaling(1.0)
     app = App()
     app._draw_spinner()
     app.mainloop()

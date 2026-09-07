@@ -19,7 +19,7 @@ KEY_FORMAT = "{}-{}-{}-{}"
 FRPS_ADDR = os.getenv("TUNNEL_FRPS_ADDR", "127.0.0.1")
 FRPS_PORT = int(os.getenv("TUNNEL_FRPS_PORT", "7000"))
 FRPS_TOKEN = os.getenv("TUNNEL_FRPS_TOKEN", "tunnel-dev-token")
-SUBDOMAIN_HOST = os.getenv("TUNNEL_SUBDOMAIN_HOST", "rootSpectrum.com")
+SUBDOMAIN_HOST = os.getenv("TUNNEL_SUBDOMAIN_HOST", "usbfix.site")
 
 ADMIN_TOKEN = os.getenv("TUNNEL_ADMIN_TOKEN", "")
 
@@ -32,3 +32,10 @@ WEBHOOK_SECRET = os.getenv("TUNNEL_WEBHOOK_SECRET", "")
 PLAN_NAME = os.getenv("TUNNEL_PLAN_NAME", "Base")
 PLAN_PRICE = float(os.getenv("TUNNEL_PLAN_PRICE", "30.0"))
 PLAN_DAYS = int(os.getenv("TUNNEL_PLAN_DAYS", "30"))
+
+# Planos (base; editáveis no painel /api/admin/plans)
+PLANS = [
+    {"id": "30d",  "name": "30 dias", "price": 25.0,  "days": 30},
+    {"id": "90d",  "name": "90 dias", "price": 70.0,  "days": 90},
+    {"id": "365d", "name": "Anual",   "price": 150.0, "days": 365},
+]

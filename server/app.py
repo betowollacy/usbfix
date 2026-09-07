@@ -63,6 +63,7 @@ class LoginBody(BaseModel):
     email: str = ""
     username: str = ""
     password: str
+    instance: Optional[str] = None
 
 
 class SubdomainBody(BaseModel):
@@ -81,6 +82,7 @@ class ResetBody(BaseModel):
 
 class TunnelEventBody(BaseModel):
     status: str
+    instance: Optional[str] = None
 
 
 class UserActionBody(BaseModel):
@@ -88,10 +90,26 @@ class UserActionBody(BaseModel):
     days: int = 30
 
 
+class AdminPasswordBody(BaseModel):
+    username: str
+    password: str
+
+
+class UsernameBody(BaseModel):
+    username: str
+    newUsername: str
+
+
+class MeUsernameBody(BaseModel):
+    newUsername: str
+    instance: Optional[str] = None
+
+
 class CheckoutBody(BaseModel):
     name: str
     email: Optional[str] = None
     cpf: str
+    planId: str = ""
 
 
 class DownloadsBody(BaseModel):
@@ -101,10 +119,15 @@ class DownloadsBody(BaseModel):
     appUrl: Optional[str] = None
 
 
-class PlanBody(BaseModel):
-    name: Optional[str] = None
-    price: Optional[float] = None
-    days: Optional[int] = None
+class PlanItem(BaseModel):
+    id: str
+    name: str
+    price: float
+    days: int
+
+
+class PlansBody(BaseModel):
+    plans: list[PlanItem]
 
 
 def extract_token(authorization: Optional[str] = Header(None)):
@@ -129,9 +152,9 @@ def require_admin(authorization: Optional[str] = Header(None)):
 @app.post("/api/register")
 def register(body: RegisterBody, request: Request):
     rate_limit(client_ip(request), "register")
-    identifier = (body.email or body.username).strip()
+    identifier = (body.username or body.email).strip()
     try:
-        db.register_user(identifier, body.password)
+        db.register_user(identifier, body.password, email=(body.email or ""))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"ok": True, "message": "conta criada, aguarde liberação do vendedor"}
@@ -145,11 +168,53 @@ def login(body: LoginBody, request: Request):
         rec = db.login_user(identifier, body.password)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    if (
+        body.instance
+        and db.effective_status(rec) == "active"
+        and db.held_by_other(rec["id"], body.instance)
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="conexão já ativa em outro computador com esta conta. Encerre o app no outro computador para entrar aqui.",
+        )
     return {"token": db.get_user(rec["username"])["token"], "user": db.public_state(rec)}
 
 
 @app.get("/api/me")
-def me(rec=Depends(extract_token)):
+def me(rec=Depends(extract_token), instance: Optional[str] = None):
+    if (
+        instance
+        and db.effective_status(rec) == "active"
+        and db.held_by_other(rec["id"], instance)
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="conexão já ativa em outro computador com esta conta.",
+        )
+    return db.public_state(rec)
+
+
+@app.post("/api/me/username")
+def set_my_username(body: MeUsernameBody, rec=Depends(extract_token)):
+    if (
+        body.instance
+        and db.effective_status(rec) == "active"
+        and db.held_by_other(rec["id"], body.instance)
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="conexão já ativa em outro computador com esta conta.",
+        )
+    email = (rec.get("email") or "").strip().lower()
+    if not email or str(rec["username"]).strip().lower() != email:
+        raise HTTPException(
+            status_code=400,
+            detail="sua conta já tem um nome de usuário. Para trocar, peça ao suporte.",
+        )
+    try:
+        rec = db.set_username(str(rec["username"]), body.newUsername)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     return db.public_state(rec)
 
 
@@ -199,9 +264,13 @@ def tunnel_event(body: TunnelEventBody, rec=Depends(extract_token)):
     if status != "active":
         raise HTTPException(status_code=403, detail="assinatura suspensa")
     if body.status == "connect":
-        db.add_session(rec["id"], None, "tunnel")
+        if not db.claim_tunnel(rec["id"], body.instance or "web"):
+            raise HTTPException(
+                status_code=409,
+                detail="conexão já ativa em outro computador com esta conta.",
+            )
     else:
-        db.end_session(rec["id"])
+        db.end_session(rec["id"], body.instance or None)
     return {"ok": True}
 
 
@@ -300,7 +369,7 @@ def checkout(body: CheckoutBody, rec=Depends(extract_token)):
     if db.effective_status(rec) == "blocked":
         raise HTTPException(status_code=403, detail="conta bloqueada")
     username = rec["username"]
-    plan = plan_view()
+    plan = plan_for(body.planId)
     customer_id = ensure_asaas_customer(username, body.name, body.email, body.cpf)
     today = datetime.now(timezone.utc).date().isoformat()
     pay = asaas("POST", "/payments", {
@@ -315,6 +384,7 @@ def checkout(body: CheckoutBody, rec=Depends(extract_token)):
     pid = db.record_payment(
         username, pay["id"], customer_id,
         plan["price"], plan["days"], qr.get("payload"),
+        plan_name=plan["name"],
     )
     return {
         "paymentId": pid,
@@ -401,42 +471,67 @@ def api_plan():
     return plan_view()
 
 
+@app.get("/api/plans")
+def api_plans():
+    return {"plans": plans_view()}
+
+
+def plans_view():
+    raw = db.get_setting("plans", "")
+    if raw:
+        try:
+            items = json.loads(raw)
+            if isinstance(items, list):
+                cleaned = []
+                for p in items:
+                    if not isinstance(p, dict) or not p.get("id") or not p.get("name"):
+                        continue
+                    try:
+                        price = float(p.get("price", 0) or 0)
+                        days = int(p.get("days", 0) or 0)
+                    except (TypeError, ValueError):
+                        continue
+                    cleaned.append({"id": str(p["id"]), "name": str(p["name"]), "price": round(price, 2), "days": days})
+                if cleaned:
+                    return cleaned
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return [dict(p) for p in config.PLANS]
+
+
+def plan_for(plan_id):
+    plans = plans_view()
+    for p in plans:
+        if p.get("id") == plan_id:
+            return p
+    return plans[0] if plans else {"id": "30d", "name": "Base", "price": config.PLAN_PRICE, "days": config.PLAN_DAYS}
+
+
 def plan_view():
-    name = db.get_setting("plan.name", "")
-    if not name:
-        name = config.PLAN_NAME
-    try:
-        price = float(db.get_setting("plan.price", str(config.PLAN_PRICE)))
-    except (TypeError, ValueError):
-        price = config.PLAN_PRICE
-    try:
-        days = int(db.get_setting("plan.days", str(config.PLAN_DAYS)))
-    except (TypeError, ValueError):
-        days = config.PLAN_DAYS
-    return {
-        "name": name,
-        "price": price,
-        "days": days,
-        "usbInstallUrl": None,
-    }
+    plans = plans_view()
+    return dict(plans[0]) if plans else {"id": "30d", "name": "Base", "price": config.PLAN_PRICE, "days": config.PLAN_DAYS}
 
 
-@app.get("/api/admin/plan")
-def admin_get_plan(authorization: Optional[str] = Header(None)):
+@app.get("/api/admin/plans")
+def admin_get_plans(authorization: Optional[str] = Header(None)):
     require_admin(authorization)
-    return plan_view()
+    return {"plans": plans_view()}
 
 
-@app.post("/api/admin/plan")
-def admin_set_plan(body: PlanBody, authorization: Optional[str] = Header(None)):
+@app.post("/api/admin/plans")
+def admin_set_plans(body: PlansBody, authorization: Optional[str] = Header(None)):
     require_admin(authorization)
-    if body.name is not None:
-        db.set_setting("plan.name", body.name.strip())
-    if body.price is not None and body.price > 0:
-        db.set_setting("plan.price", str(round(body.price, 2)))
-    if body.days is not None and body.days > 0:
-        db.set_setting("plan.days", str(int(body.days)))
-    return plan_view()
+    cleaned = []
+    for p in body.plans:
+        pid = (p.id or "").strip() or "plan"
+        cleaned.append({
+            "id": pid,
+            "name": (p.name or "").strip() or pid,
+            "price": max(0.0, round(p.price, 2)),
+            "days": int(p.days),
+        })
+    db.set_setting("plans", json.dumps(cleaned, ensure_ascii=False))
+    return {"plans": cleaned}
 
 
 @app.get("/api/admin/users")
@@ -485,6 +580,16 @@ def admin_delete(body: UserActionBody, authorization: Optional[str] = Header(Non
     return {"ok": True, "message": "usuário excluído"}
 
 
+@app.post("/api/admin/users/username")
+def admin_set_username(body: UsernameBody, authorization: Optional[str] = Header(None)):
+    require_admin(authorization)
+    try:
+        rec = db.set_username(body.username, body.newUsername)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return db.public_state(rec)
+
+
 @app.post("/api/admin/users/reset")
 def admin_reset(body: UserActionBody, authorization: Optional[str] = Header(None)):
     require_admin(authorization)
@@ -493,6 +598,18 @@ def admin_reset(body: UserActionBody, authorization: Optional[str] = Header(None
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"token": token, "expires": (db.utcnow() + timedelta(hours=db.RESET_TTL_HOURS)).isoformat()}
+
+
+@app.post("/api/admin/users/password")
+def admin_set_password(body: AdminPasswordBody, authorization: Optional[str] = Header(None)):
+    require_admin(authorization)
+    user = db.get_user(body.username)
+    if not user:
+        raise HTTPException(status_code=400, detail="usuário inválido")
+    if len(body.password) < 6:
+        raise HTTPException(status_code=400, detail="senha muito curta (mínimo 6 caracteres)")
+    db.change_password(user["username"], body.password)
+    return {"ok": True, "message": "senha definida pelo admin"}
 
 
 @app.get("/{path:path}", include_in_schema=False)

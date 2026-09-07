@@ -8,7 +8,7 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="$PROJECT_DIR/deploy/tunnel.env"
 set -a; source "$ENV_FILE"; set +a
 
-DOMAIN="${TUNNEL_SUBDOMAIN_HOST:-rootSpectrum.com}"
+DOMAIN="${TUNNEL_SUBDOMAIN_HOST:-usbfix.site}"
 ADMIN_TOKEN="${TUNNEL_ADMIN_TOKEN:-$(openssl rand -hex 24)}"
 FRP_TOKEN="${FRP_TOKEN:-$(openssl rand -hex 24)}"
 

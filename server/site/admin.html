@@ -87,21 +87,10 @@
     </div>
 
     <div class="card">
-      <h2>Plano e preço (mostrado no site)</h2>
-      <form class="form" onsubmit="return savePlan(event)">
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
-          <div>
-            <label>Nome do plano</label>
-            <input id="plName" placeholder="Base">
-          </div>
-          <div>
-            <label>Preço (R$, ex: 39.90)</label>
-            <input id="plPrice" placeholder="30.00">
-          </div>
-        </div>
-        <label>Duração (dias)</label>
-        <input id="plDays" placeholder="30">
-        <button class="btn" type="submit">Salvar plano</button>
+      <h2>Planos (mostrados no site)</h2>
+      <form class="form" onsubmit="return savePlans(event)">
+        <div id="planRows"></div>
+        <button class="btn" type="submit">Salvar planos</button>
       </form>
       <div id="plMsg" class="msg"></div>
     </div>
@@ -122,6 +111,9 @@
 <script>
 const $ = s => document.querySelector(s);
 let adminToken = localStorage.getItem('tunnel.admin') || '';
+let plans = [];
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
 
 async function api(method, path, body){
   const headers = {'Content-Type':'application/json', 'Authorization':'Bearer '+adminToken};
@@ -145,7 +137,7 @@ async function open(){
     await api('GET','/admin/downloads');
     $('#auth').classList.add('hidden');
     $('#panel').classList.remove('hidden');
-    await loadDownloads(); await loadPlan(); await loadUsers();
+    await loadDownloads(); await loadPlans(); await loadUsers();
     return true;
   }catch(err){
     if(adminToken){ $('#authMsg').textContent = 'Token inválido: '+err.message; $('#authMsg').className='msg show err'; }
@@ -178,23 +170,36 @@ async function saveDownloads(e){
   return false;
 }
 
-async function loadPlan(){
-  const p = await api('GET','/admin/plan');
-  $('#plName').value = p.name || '';
-  $('#plPrice').value = p.price ? p.price.toFixed(2) : '';
-  $('#plDays').value = p.days || '';
+async function loadPlans(){
+  const data = await api('GET','/admin/plans');
+  plans = data.plans || [];
+  const wrap = $('#planRows');
+  wrap.innerHTML='';
+  plans.forEach((p)=>{
+    const row = document.createElement('div');
+    row.style.cssText = 'display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; align-items:end';
+    row.innerHTML =
+      '<div><label>Nome</label><input data-f="name" value="'+esc(p.name)+'"></div>'+
+      '<div><label>Preço (R$)</label><input data-f="price" type="number" step="0.01" min="0" value="'+p.price.toFixed(2)+'"></div>'+
+      '<div><label>Duração (dias)</label><input data-f="days" type="number" min="1" value="'+p.days+'"></div>';
+    wrap.appendChild(row);
+  });
 }
 
-async function savePlan(e){
+async function savePlans(e){
   e.preventDefault();
   try{
-    await api('POST','/admin/plan',{
-      name: $('#plName').value.trim(),
-      price: parseFloat(($('#plPrice').value||'').replace(',', '.')),
-      days: parseInt($('#plDays').value, 10),
+    const rows = [...document.querySelectorAll('#planRows > div')];
+    const out = rows.map((row, i)=>{
+      const name = row.querySelector('[data-f="name"]').value.trim();
+      const price = parseFloat((row.querySelector('[data-f="price"]').value||'').replace(',', '.'));
+      const days = parseInt(row.querySelector('[data-f="days"]').value, 10) || 0;
+      return {id: (plans[i] && plans[i].id) || ('plan'+(i+1)), name: name || ('plan'+(i+1)), price: isNaN(price)?0:price, days: days};
     });
-    const m = $('#plMsg'); m.textContent='Plano salvo — o site já mostra o novo preço.'; m.className='msg show ok';
+    await api('POST','/admin/plans',{plans: out});
+    const m = $('#plMsg'); m.textContent='Planos salvos — o site já mostra os novos valores.'; m.className='msg show ok';
     setTimeout(()=> m.className='msg', 3500);
+    await loadPlans();
   }catch(err){ const m=$('#plMsg'); m.textContent='Erro: '+err.message; m.className='msg show err'; }
   return false;
 }
@@ -213,6 +218,8 @@ async function loadUsers(){
         '<button class="btn ghost small" data-a="approve">Liberar 30d</button>'+
         '<button class="btn ghost small" data-a="extend">Renovar 30d</button>'+
         '<button class="btn ghost small" data-a="block">Bloquear</button>'+
+        '<button class="btn ghost small" data-a="password">Definir senha</button>'+
+        '<button class="btn ghost small" data-a="username">Definir usuário</button>'+
         '<button class="btn ghost small" data-a="reset">Resetar</button>'+
         '<button class="btn ghost small err-a" data-a="delete">Excluir</button>'+
       '</div></td>';
@@ -225,6 +232,26 @@ async function loadUsers(){
 
 async function userAction(username, action){
   if(action==='delete' && !confirm('Excluir o cliente "'+username+'" e todas as conexões/pagamentos?')) return;
+  if(action==='password'){
+    const pw = prompt('Nova senha para "'+username+'" (mínimo 6 caracteres — entregue ao cliente):');
+    if(!pw) return;
+    try{
+      await api('POST','/admin/users/password',{username:username, password:pw});
+      await loadUsers();
+      alert('Senha definida!');
+    }catch(err){ alert('Erro: '+err.message); }
+    return;
+  }
+  if(action==='username'){
+    const nu = prompt('Novo nome de usuário para "'+username+'" (3-32 caracteres: letras, números, . _ -):');
+    if(!nu) return;
+    try{
+      await api('POST','/admin/users/username',{username:username, newUsername:nu});
+      await loadUsers();
+      alert('Usuário definido! O cliente agora entra com "'+nu.trim().toLowerCase()+'" (o e-mail continua funcionando também).');
+    }catch(err){ alert('Erro: '+err.message); }
+    return;
+  }
   if(action==='reset'){
     try{
       const data = await api('POST','/admin/users/reset',{username:username});

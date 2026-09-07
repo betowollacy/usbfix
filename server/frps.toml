@@ -8,7 +8,7 @@ auth.token = "tunnel-dev-token"   # TROQUE em produção
 transport.tls.force = true
 
 # Aponte *.seu-dominio.com para este servidor (clientes usam nome.dominio:porta)
-# subdomainHost = "rootSpectrum.com"
+# subdomainHost = "usbfix.site"
 
 # Portas públicas que os proxies podem usar — combine com TUNNEL_PORT_MIN/MAX
 allowPorts = [
