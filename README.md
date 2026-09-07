@@ -8,6 +8,21 @@ Túnel USB remoto por assinatura (estilo GFIX/USB Redirector), em Python.
                         └─ API FastAPI (cadastro, login, Pix/Asaas, licença, DNS)
 ```
 
+
+                        ## Deploy automático
+
+                        Pushes para `master` executam `.github/workflows/deploy.yml`. Configure estes
+                        GitHub Actions secrets no repositório:
+
+                        | Secret | Valor |
+                        |---|---|
+                        | `VPS_HOST` | IP ou domínio da VPS |
+                        | `VPS_USER` | usuário SSH, por exemplo `root` |
+                        | `VPS_SSH_KEY` | chave privada SSH correspondente à chave autorizada na VPS |
+                        | `VPS_PROJECT_DIR` | caminho do projeto na VPS, por exemplo `/opt/usbfix` |
+
+                        O workflow compila o aplicativo Windows, envia os executáveis para a VPS e
+                        executa `deploy/deploy.sh`. Senhas não devem ser colocadas no workflow.
 Live: **https://usbfix.site** — painel do vendedor em `/admin` (token em
 `TUNNEL_ADMIN_TOKEN`).
 

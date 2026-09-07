@@ -1,0 +1,111 @@
+name: Deploy USB FIX
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install client dependencies
+        shell: pwsh
+        working-directory: client
+        run: |
+          python -m pip install --upgrade pip
+          if (Test-Path requirements.txt -and (Get-Item requirements.txt).Length -gt 0) {
+            python -m pip install -r requirements.txt
+          }
+          python -m pip install pyinstaller customtkinter Pillow
+
+      - name: Download FRP client
+        working-directory: client
+        run: python download_frp.py
+
+      - name: Build application and installer
+        shell: cmd
+        working-directory: client
+        run: build_tudo.bat
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: usbfix-windows
+          path: |
+            client/dist/USB-Fix.exe
+            client/dist/Instalar USB FIX.exe
+          if-no-files-found: error
+
+  deploy-vps:
+    needs: build-windows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: usbfix-windows
+          path: client/dist
+
+      - name: Configure SSH
+        shell: bash
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${VPS_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${VPS_HOST}" >> ~/.ssh/known_hosts
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Sync source and executables
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh "${VPS_USER}@${VPS_HOST}" "mkdir -p '${VPS_PROJECT_DIR}'"
+          rsync -az --delete \
+            --exclude '.git/' \
+            --exclude 'client/dist/' \
+            --exclude 'client/build/' \
+            --exclude 'deploy/tunnel.env' \
+            --exclude 'server/data/' \
+            ./ "${VPS_USER}@${VPS_HOST}:${VPS_PROJECT_DIR}/"
+          ssh "${VPS_USER}@${VPS_HOST}" "mkdir -p '${VPS_PROJECT_DIR}/client/dist'"
+          scp 'client/dist/USB-Fix.exe' \
+            "${VPS_USER}@${VPS_HOST}:${VPS_PROJECT_DIR}/client/dist/USB-Fix.exe"
+          scp 'client/dist/Instalar USB FIX.exe' \
+            "${VPS_USER}@${VPS_HOST}:${VPS_PROJECT_DIR}/client/dist/Instalar USB FIX.exe"
+
+      - name: Run VPS deploy
+        shell: bash
+        run: |
+          ssh "${VPS_USER}@${VPS_HOST}" \
+            "cd '${VPS_PROJECT_DIR}' && chmod +x deploy/deploy.sh && sudo bash deploy/deploy.sh"
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PROJECT_DIR: ${{ secrets.VPS_PROJECT_DIR }}
+        
+      - name: Verify public installer
+        shell: bash
+        run: |
+          ssh "${VPS_USER}@${VPS_HOST}" \
+            "test -s '/opt/tunnel/server/site/downloads/Instalar USB FIX.exe' && test -s '/opt/tunnel/server/site/downloads/USB-Fix.exe'"
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
