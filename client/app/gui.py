@@ -1,15 +1,20 @@
 import base64
 import io
+import json
 import os
 import queue
 import socket
+import subprocess
+import sys
 import threading
 import tkinter as tk
+import urllib.request
 import uuid
 
 import customtkinter as ctk
 from PIL import Image
 from tkinter import messagebox
+from pathlib import Path
 
 from . import creds, logo, usb
 from .api import Api, ApiError
@@ -175,6 +180,12 @@ class App(ctk.CTk):
         self.deiconify()
 
     def _after_splash(self):
+        if getattr(sys, "frozen", False):
+            self.bg(self._check_for_update, self._update_checked)
+            return
+        self._continue_after_update()
+
+    def _continue_after_update(self):
         saved = creds.load()
         if saved and saved["token"]:
             self.api.set_token(saved["token"])
@@ -182,6 +193,42 @@ class App(ctk.CTk):
         else:
             self._close_splash_win()
             self._show_login()
+
+    @staticmethod
+    def _version_tuple(value):
+        return tuple(int(part) for part in str(value).split(".") if part.isdigit())
+
+    def _check_for_update(self):
+        version_url = self.api.base.rstrip("/") + "/api/version"
+        with urllib.request.urlopen(version_url, timeout=8) as response:
+            info = json.loads(response.read().decode("utf-8"))
+        if self._version_tuple(info.get("version", VERSION)) <= self._version_tuple(VERSION):
+            return None
+        url = info.get("url") or "/downloads/USB-Fix.exe"
+        if url.startswith("/"):
+            url = self.api.base.rstrip("/") + url
+        target = Path(sys.executable).resolve()
+        download = DATA_DIR / "USB-Fix.update.exe"
+        urllib.request.urlretrieve(url, download)
+        return target, download
+
+    def _update_checked(self, result, err):
+        if err or not result:
+            self._continue_after_update()
+            return
+        target, download = result
+        script = download.with_suffix(".bat")
+        script.write_text(
+            "@echo off\r\n"
+            "timeout /t 2 /nobreak >nul\r\n"
+            f'copy /y "{download}" "{target}" >nul\r\n'
+            f'start "" "{target}"\r\n'
+            f'del /f /q "{download}" >nul 2>&1\r\n'
+            "del /f /q \"%~f0\" >nul 2>&1\r\n",
+            encoding="ascii",
+        )
+        subprocess.Popen(["cmd", "/c", str(script)], creationflags=subprocess.CREATE_NO_WINDOW)
+        self.destroy()
 
     def _me_done(self, result, err):
         self._close_splash_win()

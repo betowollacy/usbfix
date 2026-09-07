@@ -8,6 +8,7 @@ DB_PATH = DATA_DIR / "tunnel.db"
 
 HOST = os.getenv("TUNNEL_HOST", "0.0.0.0")
 PORT = int(os.getenv("TUNNEL_PORT", "8000"))
+APP_VERSION = os.getenv("TUNNEL_APP_VERSION", "0.5.0")
 
 TRIAL_HOURS = int(os.getenv("TUNNEL_TRIAL_HOURS", "6"))
 SUBSCRIPTION_DAYS = int(os.getenv("TUNNEL_SUBSCRIPTION_DAYS", "30"))

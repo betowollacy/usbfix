@@ -297,6 +297,11 @@ def downloads(authorization: Optional[str] = Header(None)):
     return result
 
 
+@app.get("/api/version")
+def app_version():
+    return {"version": config.APP_VERSION, "url": "/downloads/USB-Fix.exe"}
+
+
 @app.get("/api/admin/downloads")
 def admin_get_downloads(authorization: Optional[str] = Header(None)):
     require_admin(authorization)
