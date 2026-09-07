@@ -2,6 +2,7 @@ import base64
 import io
 import os
 import queue
+import socket
 import threading
 import tkinter as tk
 import uuid
@@ -519,6 +520,9 @@ class App(ctk.CTk):
                                       fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
                                       font=self._font_btn, corner_radius=10, cursor="hand2")
         self.btn_conn.pack(fill="x", pady=(0, 4))
+        self.conn_status = ctk.CTkLabel(inner, text="Status: desconectado", text_color=MUTED,
+                        font=self._font_small)
+        self.conn_status.pack(fill="x", pady=(0, 4))
         self.conn_err = ctk.CTkLabel(inner, text="", text_color=ERR, font=self._font_small,
                                      wraplength=330, justify="left")
         self.conn_err.pack(fill="x")
@@ -544,6 +548,13 @@ class App(ctk.CTk):
     def _com_number(self, value):
         digits = "".join(c for c in value if c.isdigit())
         return int(digits) if digits else 32038
+
+    def _local_port_is_open(self, port):
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=1):
+                return True
+        except OSError:
+            return False
 
     def _refresh_portal(self):
         self.bg(self._fetch_state, self._render_state)
@@ -594,8 +605,13 @@ class App(ctk.CTk):
             self.trial_lbl.configure(text=status)
 
     def _copy_endpoint(self):
+        endpoint = self.user.get("endpoint") if self.user else None
+        port = self.user.get("port") if self.user else None
+        value = f"{endpoint}:{port}" if endpoint and port else ""
+        if not value:
+            return
         self.clipboard_clear()
-        self.clipboard_append(self.endpoint_lbl.cget("text"))
+        self.clipboard_append(value)
         self.copy_btn.configure(text="✓ Copiado")
         self.after(1200, lambda: self.copy_btn.configure(text="Copiar"))
 
@@ -644,6 +660,11 @@ class App(ctk.CTk):
         if not local_port:
             self.conn_err.configure(text="⚠ Informe uma porta local válida.")
             return
+        if not self._local_port_is_open(local_port):
+            self.conn_err.configure(
+                text=f"⚠ USB Redirector não está ativo em 127.0.0.1:{local_port}."
+            )
+            return
         if not self.user:
             return
         if self.user.get("status") != "active":
@@ -682,13 +703,16 @@ class App(ctk.CTk):
                                 hover_color=ACCENT if running else ACCENT_DARK)
         if running:
             self.pill.configure(text="conectado", text_color="#00241a", fg_color=OK)
+            self.conn_status.configure(text="Status: conectado ao servidor", text_color=OK)
             if self.user and self.user.get("endpoint"):
                 self.endpoint_lbl.configure(text=f"✓ {self.user['endpoint']}:{self.user.get('port')}",
                                             text_color=OK)
         elif self.user and self.user.get("status") in ("blocked", "expired", "unused", "pending"):
             self.pill.configure(text="suspensa", text_color="white", fg_color=ERR)
+            self.conn_status.configure(text="Status: acesso suspenso", text_color=ERR)
         else:
             self.pill.configure(text="offline", text_color="#201500", fg_color=WARN)
+            self.conn_status.configure(text="Status: desconectado", text_color=MUTED)
             if self.user and self.user.get("endpoint"):
                 self.endpoint_lbl.configure(text=f"{self.user['endpoint']}:{self.user.get('port')}",
                                             text_color=TEXT)
