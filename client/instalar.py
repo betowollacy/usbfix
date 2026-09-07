@@ -9,7 +9,7 @@ from pathlib import Path
 APP_DIR_NAME = "USB FIX"
 EXE_NAME = "USB-Fix.exe"
 ICON_NAME = "USB-Fix.ico"
-APP_VERSION = "0.5.0"
+APP_VERSION = "0.6.0"
 APP_DOWNLOAD_URL = "https://usbfix.site/downloads/USB-Fix.exe"
 UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\USB FIX"
 
@@ -116,7 +116,8 @@ def main():
             "$s.Description='USB FIX - acesso remoto USB';"
             "$s.Save()"
         )
-        subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps], check=True)
+        subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
+                       check=True, creationflags=subprocess.CREATE_NO_WINDOW)
 
         write_uninstaller(app_dir)
         register_uninstall(app_dir)

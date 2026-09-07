@@ -49,6 +49,8 @@ class App(ctk.CTk):
         self.tunnel.on_change(self._on_tunnel_change)
         self.user = None
         self._hb_on = False
+        self._pulse_job = None
+        self._pulse_on = False
         self.instance = self._load_instance()
         self._bg_tasks = queue.Queue()
         self._font_title = ctk.CTkFont(family=FONT, size=19, weight="bold")
@@ -60,14 +62,15 @@ class App(ctk.CTk):
         self._font_mono = ctk.CTkFont(family="Consolas", size=12)
 
         self._logo_img = None
+        self._logo_img_lg = None
         try:
             raw = base64.b64decode(logo.LOGO_B64)
             img = Image.open(io.BytesIO(raw))
             w, h = img.size
-            ch = 26
-            self._logo_img = ctk.CTkImage(light_image=img, dark_image=img, size=(int(w * ch / h), ch))
+            self._logo_img = ctk.CTkImage(light_image=img, dark_image=img, size=(int(w * 26 / h), 26))
+            self._logo_img_lg = ctk.CTkImage(light_image=img, dark_image=img, size=(int(w * 92 / h), 92))
         except Exception:
-            self._logo_img = None
+            pass
         try:
             self.iconphoto(True, tk.PhotoImage(data=logo.ICON_B64))
             self._icon16 = tk.PhotoImage(data=logo.ICON_B64)
@@ -143,10 +146,12 @@ class App(ctk.CTk):
         for f in frames:
             f.pack_forget()
 
-    def _logo_pack(self, parent):
-        if self._logo_img:
-            return ctk.CTkLabel(parent, text="", image=self._logo_img, fg_color="transparent")
-        return ctk.CTkLabel(parent, text="⚡", text_color=ACCENT, font=("Segoe UI", 24))
+    def _logo_pack(self, parent, large=False):
+        img = self._logo_img_lg if (large and self._logo_img_lg) else self._logo_img
+        if img:
+            return ctk.CTkLabel(parent, text="", image=img, fg_color="transparent")
+        return ctk.CTkLabel(parent, text="⚡", text_color=ACCENT,
+                            font=("Segoe UI", 40 if large else 24))
 
     def _head_bar(self, parent, right_builder=None):
         bar = ctk.CTkFrame(parent, fg_color=HEADER_BG, corner_radius=0)
@@ -262,17 +267,16 @@ class App(ctk.CTk):
         self.splash_win.configure(fg_color=BG)
         self.splash_win.resizable(False, False)
         self.splash_win.overrideredirect(True)
-        w, h = 380, 230
+        w, h = 380, 300
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         self.splash_win.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2 - 30}")
         body = ctk.CTkFrame(self.splash_win, fg_color=BG, corner_radius=0)
         body.pack(fill="both", expand=True)
         ctk.CTkFrame(self.splash_win, height=4, fg_color=ACCENT, corner_radius=0).pack(fill="x", side="top")
-        ctk.CTkFrame(body, height=46, fg_color=HEADER_BG, corner_radius=0).pack(fill="x")
-        self._logo_pack(body).pack(pady=(8, 0))
-        ctk.CTkLabel(body, text=APP_NAME, text_color=TEXT, font=self._font_title).pack(pady=(10, 0))
+        self._logo_pack(body, large=True).pack(pady=(30, 0))
+        ctk.CTkLabel(body, text=APP_NAME, text_color=TEXT, font=self._font_title).pack(pady=(14, 0))
         ctk.CTkLabel(body, text="USB remoto por assinatura", text_color=MUTED,
-                     font=self._font_small).pack(pady=(2, 14))
+                     font=self._font_small).pack(pady=(3, 20))
         self.spinner = ctk.CTkProgressBar(body, mode="indeterminate", width=150, height=6,
                                           fg_color=PANEL2, progress_color=ACCENT, corner_radius=3)
         self.spinner.pack()
@@ -303,19 +307,24 @@ class App(ctk.CTk):
 
     def _build_login(self):
         self.login = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
-        self._head_bar(self.login)
+        ctk.CTkFrame(self.login, height=3, fg_color=ACCENT, corner_radius=0).pack(fill="x", side="top")
         pad = ctk.CTkFrame(self.login, fg_color=BG, corner_radius=0)
         pad.pack(fill="both", expand=True, padx=34)
+        brand = ctk.CTkFrame(pad, fg_color="transparent", corner_radius=0)
+        brand.pack(fill="x", pady=(22, 4))
+        self._logo_pack(brand, large=True).pack()
+        ctk.CTkLabel(brand, text=APP_NAME, text_color=TEXT, font=self._font_title).pack(pady=(10, 0))
+        ctk.CTkLabel(brand, text="Acesso remoto USB por assinatura", text_color=MUTED,
+                     font=self._font_small).pack()
         card = ctk.CTkFrame(pad, fg_color=PANEL, corner_radius=14, border_width=1, border_color=LINE)
-        card.pack(fill="both", expand=True, pady=(26, 10))
+        card.pack(fill="both", expand=True, pady=(14, 10))
         inner = ctk.CTkFrame(card, fg_color=PANEL, corner_radius=0)
-        inner.pack(fill="both", expand=True, padx=24, pady=24)
+        inner.pack(fill="both", expand=True, padx=24, pady=22)
 
-        self._logo_pack(inner).pack(pady=(0, 12))
         ctk.CTkLabel(inner, text="Entrar", text_color=TEXT, font=self._font_h1,
                      anchor="w").pack(fill="x")
         ctk.CTkLabel(inner, text="Acesse sua conta para conectar seus dispositivos", text_color=MUTED,
-                     font=self._font_small, anchor="w").pack(fill="x", pady=(2, 16))
+                     font=self._font_small, anchor="w").pack(fill="x", pady=(2, 14))
 
         self.login_err = ctk.CTkLabel(inner, text="", text_color=ERR, font=self._font_small,
                                       wraplength=300, justify="left")
@@ -568,9 +577,14 @@ class App(ctk.CTk):
                                       fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
                                       font=self._font_btn, corner_radius=10, cursor="hand2")
         self.btn_conn.pack(fill="x", pady=(0, 4))
-        self.conn_status = ctk.CTkLabel(inner, text="Status: desconectado", text_color=MUTED,
-                        font=self._font_small)
-        self.conn_status.pack(fill="x", pady=(0, 4))
+        statusrow = ctk.CTkFrame(inner, fg_color="transparent", corner_radius=0)
+        statusrow.pack(pady=(0, 4))
+        self.status_dot = ctk.CTkLabel(statusrow, text="●", text_color=MUTED,
+                                       font=("Segoe UI", 13), width=16)
+        self.status_dot.pack(side="left")
+        self.conn_status = ctk.CTkLabel(statusrow, text="Desconectado", text_color=MUTED,
+                                        font=self._font_small)
+        self.conn_status.pack(side="left", padx=(4, 0))
         self.conn_err = ctk.CTkLabel(inner, text="", text_color=ERR, font=self._font_small,
                                      wraplength=330, justify="left")
         self.conn_err.pack(fill="x")
@@ -749,26 +763,44 @@ class App(ctk.CTk):
     def _on_tunnel_change(self, running):
         self.after(0, self._update_pill)
 
+    def _set_status(self, text, color, pulse=False):
+        self.conn_status.configure(text=text, text_color=color)
+        if self._pulse_job:
+            try:
+                self.after_cancel(self._pulse_job)
+            except Exception:
+                pass
+            self._pulse_job = None
+        self._pulse_on = pulse
+        if pulse:
+            self._pulse_bright = False
+            self._pulse_dot()
+        else:
+            self.status_dot.configure(text_color=color)
+
+    def _pulse_dot(self):
+        if not self._pulse_on:
+            return
+        self._pulse_bright = not self._pulse_bright
+        self.status_dot.configure(text_color=OK if self._pulse_bright else "#1d7a56")
+        self._pulse_job = self.after(650, self._pulse_dot)
+
     def _update_pill(self):
         running = self.tunnel.is_running()
         self.btn_conn.configure(text="Desconectar" if running else "Conectar",
                                 fg_color=ACCENT_DARK if running else ACCENT,
                                 hover_color=ACCENT if running else ACCENT_DARK)
+        if self.user and self.user.get("endpoint"):
+            self.endpoint_lbl.configure(text=self._endpoint_value() or "—:—", text_color=TEXT)
         if running:
             self.pill.configure(text="conectado", text_color="#00241a", fg_color=OK)
-            self.conn_status.configure(text="Status: conectado ao servidor", text_color=OK)
-            if self.user and self.user.get("endpoint"):
-                self.endpoint_lbl.configure(text=self._endpoint_value(),
-                                            text_color=OK)
+            self._set_status("Conectado ao servidor", OK, pulse=True)
         elif self.user and self.user.get("status") in ("blocked", "expired", "unused", "pending"):
             self.pill.configure(text="suspensa", text_color="white", fg_color=ERR)
-            self.conn_status.configure(text="Status: acesso suspenso", text_color=ERR)
+            self._set_status("Acesso suspenso", ERR)
         else:
             self.pill.configure(text="offline", text_color="#201500", fg_color=WARN)
-            self.conn_status.configure(text="Status: desconectado", text_color=MUTED)
-            if self.user and self.user.get("endpoint"):
-                self.endpoint_lbl.configure(text=self._endpoint_value(),
-                                            text_color=TEXT)
+            self._set_status("Desconectado", MUTED)
 
     def _logout(self):
         self._hb_on = False

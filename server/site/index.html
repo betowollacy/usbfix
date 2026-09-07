@@ -267,6 +267,25 @@
   </div>
 </section>
 
+<section id="registro" class="wrap hidden">
+  <h2>Criar conta</h2>
+  <div class="grid cols">
+    <div class="card">
+      <h3 style="margin-top:0">Comece agora</h3>
+      <p>Crie sua conta, escolha um plano e pague com Pix — a liberação é automática.</p>
+      <form class="form" onsubmit="return regSubmit(event)">
+        <label>Usuário</label><input id="rgUser" type="text" autocomplete="username" placeholder="3 a 32 caracteres" required>
+        <label>E-mail</label><input id="rgEmail" type="email" autocomplete="email" placeholder="seu@email.com" required>
+        <label>Senha (mínimo 6 caracteres)</label><input id="rgPass" type="password" autocomplete="new-password" required>
+        <button class="btn assin" type="submit">Criar conta</button>
+      </form>
+      <div id="regMsg" class="msg"></div>
+      <p style="font-size:13px; color:var(--muted); margin-top:12px">Já tem conta?
+        <a href="#" onclick="openAuth('login'); return false;">Entrar</a></p>
+    </div>
+  </div>
+</section>
+
 <footer>
   <div class="wrap">USB FIX — acesso remoto USB por assinatura. Suporte pelo canal do vendedor.</div>
 </footer>
@@ -297,7 +316,28 @@ function scrollTo(sel){ document.querySelector(sel).scrollIntoView({behavior:'sm
 
 function assinar(){
   if(token){ showAcct(); scrollTo('#area'); }
-  else{ openAuth('reg'); }
+  else{ showRegistro(); }
+}
+
+function showRegistro(){
+  $('#hero').classList.add('hidden');
+  $('#registro').classList.remove('hidden');
+  $('#dropMenu').classList.add('hidden');
+  scrollTo('#registro');
+  setTimeout(()=>{ const i = $('#rgUser'); if(i) i.focus(); }, 350);
+}
+
+async function regSubmit(e){
+  e.preventDefault();
+  try{
+    const user = $('#rgUser').value.trim().toLowerCase();
+    const email = $('#rgEmail').value.trim().toLowerCase();
+    const pass = $('#rgPass').value;
+    await api('POST','/register',{username:user, email:email, password:pass});
+    await loginInto(user, pass);
+    msg('#navMsg', 'Conta criada! Você já está logado.', 'ok');
+  }catch(err){ msg('#regMsg', err.message, 'err'); }
+  return false;
 }
 
 function openAuth(tab){
@@ -376,6 +416,7 @@ async function navReg(e){
 
 function showAcct(){
   $('#hero').classList.add('hidden');
+  $('#registro').classList.add('hidden');
   $('#btnSair').classList.remove('hidden');
   $('#area').classList.remove('hidden');
   $('#acctPanel').classList.remove('hidden');
@@ -585,7 +626,7 @@ function assinarPlan(el){
   const pid = el.getAttribute('data-plan');
   if(!token){
     try{ sessionStorage.setItem('tunnel.plan', pid); }catch(_){}
-    openAuth('reg');
+    showRegistro();
     return false;
   }
   showAcct();
@@ -610,6 +651,7 @@ async function logout(){
   token = null; session = null; clearInterval(pollTimer);
   try{ localStorage.removeItem('tunnel.token'); localStorage.removeItem('tunnel.user'); }catch(_){}
   $('#hero').classList.remove('hidden');
+  $('#registro').classList.add('hidden');
   $('#btnSair').classList.add('hidden');
   $('#area').classList.add('hidden');
   $('#acctPanel').classList.add('hidden');

@@ -305,13 +305,14 @@ def effective_status(rec):
 
 def public_state(rec):
     endpoint_domain = SUBDOMAIN_HOST
+    endpoint = f"{rec['subdomain']}.{endpoint_domain}" if rec.get("subdomain") else None
     return {
         "id": rec["id"],
         "username": rec["username"],
         "email": rec.get("email") or rec["username"],
         "deviceName": rec.get("device_name"),
         "subdomain": rec.get("subdomain"),
-        "endpoint": f"{rec['subdomain']}.{endpoint_domain}" if rec.get("subdomain") else None,
+        "endpoint": endpoint.strip("✓✔☑✅ ") if endpoint else None,
         "port": rec.get("server_port"),
         "status": effective_status(rec),
         "validUntil": rec.get("valid_until"),
