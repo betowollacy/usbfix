@@ -1,0 +1,33 @@
+# Sistema / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Builds e binários
+client/build/
+client/dist/
+*.exe
+*.msi
+*.zip
+
+# Dados locais (banco de produção, logs)
+server/data/
+*.db
+*.db-shm
+*.db-wal
+
+# Segredos - NUNCA versionar
+deploy/tunnel.env
+**/tunnel.env
+*.pem
+*.key
+admin/config.json

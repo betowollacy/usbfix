@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel — USB FIX</title>
+<style>
+  :root{
+    --bg:#0b1020; --bg2:#111a33; --card:#151f3d; --line:#243053;
+    --txt:#e7ecf7; --muted:#9aa7c9; --accent:#4f7cff; --accent2:#7c3aed;
+    --ok:#2ecc71; --warn:#f0b429; --err:#e74c3c;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{background:radial-gradient(1200px 500px at 80% -10%, var(--bg2), var(--bg)) fixed; color:var(--txt);
+       font-family:Segoe UI, system-ui, -apple-system, Roboto, Arial, sans-serif; line-height:1.55; padding:30px 20px}
+  .wrap{max-width:1000px; margin:0 auto}
+  h1{font-size:26px; margin-bottom:4px}
+  sub{color:var(--muted); font-size:13px}
+  .bar{display:flex; align-items:center; gap:14px; margin-bottom:24px; flex-wrap:wrap}
+  .bar .spacer{flex:1}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:22px; margin-top:18px}
+  h2{font-size:19px; margin-bottom:14px}
+  .form{display:flex; flex-direction:column; gap:12px}
+  label{font-size:13px; color:var(--muted)}
+  input{background:var(--bg); border:1px solid var(--line); border-radius:10px; color:var(--txt);
+       padding:11px 14px; font-size:14px; width:100%}
+  input:focus{outline:2px solid var(--accent)}
+  .btn{background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border:0; border-radius:10px;
+       padding:10px 18px; font-weight:600; cursor:pointer; font-size:14px}
+  .btn:hover{filter:brightness(1.1)}
+  .btn.ghost{background:transparent; border:1px solid var(--line); color:var(--txt)}
+  .btn.small{padding:6px 12px; font-size:12px}
+  .msg{border-radius:10px; padding:11px 14px; font-size:14px; display:none; margin-top:12px}
+  .msg.show{display:block}
+  .msg.ok{background:rgba(46,204,113,.12); color:var(--ok); border:1px solid rgba(46,204,113,.4)}
+  .msg.err{background:rgba(231,76,60,.12); color:var(--err); border:1px solid rgba(231,76,60,.4)}
+  table{width:100%; border-collapse:collapse; font-size:13px}
+  th,td{text-align:left; padding:9px 10px; border-bottom:1px solid var(--line)}
+  th{color:var(--muted); font-weight:600}
+  td .actions{display:flex; gap:6px; flex-wrap:wrap}
+  .pill{border-radius:999px; padding:2px 10px; font-size:11px; font-weight:700}
+  .pill.active{background:rgba(46,204,113,.15); color:var(--ok)}
+  .pill.pending{background:rgba(240,180,41,.15); color:var(--warn)}
+  .pill.expired,.pill.blocked{background:rgba(231,76,60,.15); color:var(--err)}
+  .hidden{display:none}
+  #auth{max-width:420px; margin:80px auto 0}
+  a{color:var(--accent); text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <div>
+      <h1>Painel do vendedor</h1>
+      <sub>Downloads + clientes + licenças</sub>
+    </div>
+    <span class="spacer"></span>
+    <a class="btn ghost" href="/">Ver site</a>
+    <button class="btn ghost" onclick="logout()">Sair</button>
+  </div>
+
+  <div class="card hidden" id="auth">
+    <h2>Entrar no painel</h2>
+    <form class="form" onsubmit="return doLogin(event)">
+      <label>Senha/Token admin (TUNNEL_ADMIN_TOKEN)</label>
+      <input id="admToken" required>
+      <button class="btn" type="submit">Entrar</button>
+    </form>
+    <div id="authMsg" class="msg"></div>
+  </div>
+
+  <div id="panel" class="hidden">
+    <div class="card">
+      <h2>Downloads e key</h2>
+      <form class="form" onsubmit="return saveDownloads(event)">
+        <label>App USB FIX — URL (padrão: /downloads/USB-Fix.exe)</label>
+        <input id="dlAppUrl" placeholder="/downloads/USB-Fix.exe">
+        <label>USB Redirector — Cliente (URL do instalador)</label>
+        <input id="dlUsbCli" placeholder="https://..." >
+        <label>USB Redirector — Servidor (URL do instalador)</label>
+        <input id="dlUsbSrv" placeholder="https://...">
+        <label>Key de ativação do USB Redirector (aparece para clientes logados)</label>
+        <input id="dlKey" placeholder="XXXX-XXXX-XXXX-XXXX">
+        <button class="btn" type="submit">Salvar downloads</button>
+      </form>
+      <div id="dlMsg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Planos (mostrados no site)</h2>
+      <form class="form" onsubmit="return savePlans(event)">
+        <div id="planRows"></div>
+        <button class="btn" type="submit">Salvar planos</button>
+      </form>
+      <div id="plMsg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Clientes</h2>
+      <button class="btn ghost small" onclick="loadUsers()" style="margin-bottom:12px">Atualizar lista</button>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>E-mail</th><th>Status</th><th>Endpoint</th><th>Válido até</th><th>Ações</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let adminToken = localStorage.getItem('tunnel.admin') || '';
+let plans = [];
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+
+async function api(method, path, body){
+  const headers = {'Content-Type':'application/json', 'Authorization':'Bearer '+adminToken};
+  const resp = await fetch('/api' + path, {method, headers, body: body?JSON.stringify(body):undefined});
+  const text = await resp.text();
+  const data = text?JSON.parse(text):{};
+  if(!resp.ok) throw new Error(data.detail || ('Erro '+resp.status));
+  return data;
+}
+
+function doLogin(e){
+  e.preventDefault();
+  adminToken = $('#admToken').value.trim();
+  try{ localStorage.setItem('tunnel.admin', adminToken); }catch(_){}
+  $('#authMsg').className = 'msg';
+  return open();
+}
+
+async function open(){
+  try{
+    await api('GET','/admin/downloads');
+    $('#auth').classList.add('hidden');
+    $('#panel').classList.remove('hidden');
+    await loadDownloads(); await loadPlans(); await loadUsers();
+    return true;
+  }catch(err){
+    if(adminToken){ $('#authMsg').textContent = 'Token inválido: '+err.message; $('#authMsg').className='msg show err'; }
+    $('#auth').classList.remove('hidden');
+    $('#panel').classList.add('hidden');
+    return false;
+  }
+}
+
+async function loadDownloads(){
+  const d = await api('GET','/admin/downloads');
+  $('#dlAppUrl').value = d.appUrl || '';
+  $('#dlUsbCli').value = d.usbClientUrl || '';
+  $('#dlUsbSrv').value = d.usbServerUrl || '';
+  $('#dlKey').value = d.activationKey || '';
+}
+
+async function saveDownloads(e){
+  e.preventDefault();
+  try{
+    await api('POST','/admin/downloads',{
+      appUrl: $('#dlAppUrl').value.trim(),
+      usbClientUrl: $('#dlUsbCli').value.trim(),
+      usbServerUrl: $('#dlUsbSrv').value.trim(),
+      activationKey: $('#dlKey').value.trim(),
+    });
+    const m = $('#dlMsg'); m.textContent='Downloads salvos.'; m.className='msg show ok';
+    setTimeout(()=> m.className='msg', 3000);
+  }catch(err){ const m=$('#dlMsg'); m.textContent='Erro: '+err.message; m.className='msg show err'; }
+  return false;
+}
+
+async function loadPlans(){
+  const data = await api('GET','/admin/plans');
+  plans = data.plans || [];
+  const wrap = $('#planRows');
+  wrap.innerHTML='';
+  plans.forEach((p)=>{
+    const row = document.createElement('div');
+    row.style.cssText = 'display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; align-items:end';
+    row.innerHTML =
+      '<div><label>Nome</label><input data-f="name" value="'+esc(p.name)+'"></div>'+
+      '<div><label>Preço (R$)</label><input data-f="price" type="number" step="0.01" min="0" value="'+p.price.toFixed(2)+'"></div>'+
+      '<div><label>Duração (dias)</label><input data-f="days" type="number" min="1" value="'+p.days+'"></div>';
+    wrap.appendChild(row);
+  });
+}
+
+async function savePlans(e){
+  e.preventDefault();
+  try{
+    const rows = [...document.querySelectorAll('#planRows > div')];
+    const out = rows.map((row, i)=>{
+      const name = row.querySelector('[data-f="name"]').value.trim();
+      const price = parseFloat((row.querySelector('[data-f="price"]').value||'').replace(',', '.'));
+      const days = parseInt(row.querySelector('[data-f="days"]').value, 10) || 0;
+      return {id: (plans[i] && plans[i].id) || ('plan'+(i+1)), name: name || ('plan'+(i+1)), price: isNaN(price)?0:price, days: days};
+    });
+    await api('POST','/admin/plans',{plans: out});
+    const m = $('#plMsg'); m.textContent='Planos salvos — o site já mostra os novos valores.'; m.className='msg show ok';
+    setTimeout(()=> m.className='msg', 3500);
+    await loadPlans();
+  }catch(err){ const m=$('#plMsg'); m.textContent='Erro: '+err.message; m.className='msg show err'; }
+  return false;
+}
+
+async function loadUsers(){
+  const users = await api('GET','/admin/users');
+  const tbody = $('#rows');
+  tbody.innerHTML='';
+  for(const u of users){
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td><b>'+(u.email||u.username)+'</b></td>'+
+      '<td><span class="pill '+u.statusRaw+'">'+u.status+'</span></td>'+
+      '<td>'+(u.endpoint ? u.endpoint+':'+u.port : '—')+'</td>'+
+      '<td>'+(u.validUntil ? new Date(u.validUntil).toLocaleDateString('pt-BR') : '—')+'</td>'+
+      '<td><div class="actions">'+
+        '<button class="btn ghost small" data-a="approve">Liberar 30d</button>'+
+        '<button class="btn ghost small" data-a="extend">Renovar 30d</button>'+
+        '<button class="btn ghost small" data-a="block">Bloquear</button>'+
+        '<button class="btn ghost small" data-a="password">Definir senha</button>'+
+        '<button class="btn ghost small" data-a="username">Definir usuário</button>'+
+        '<button class="btn ghost small" data-a="reset">Resetar</button>'+
+        '<button class="btn ghost small err-a" data-a="delete">Excluir</button>'+
+      '</div></td>';
+    tr.querySelectorAll('button[data-a]').forEach(b=>{
+      b.onclick = () => userAction(u.email||u.username, b.dataset.a);
+    });
+    tbody.appendChild(tr);
+  }
+}
+
+async function userAction(username, action){
+  if(action==='delete' && !confirm('Excluir o cliente "'+username+'" e todas as conexões/pagamentos?')) return;
+  if(action==='password'){
+    const pw = prompt('Nova senha para "'+username+'" (mínimo 6 caracteres — entregue ao cliente):');
+    if(!pw) return;
+    try{
+      await api('POST','/admin/users/password',{username:username, password:pw});
+      await loadUsers();
+      alert('Senha definida!');
+    }catch(err){ alert('Erro: '+err.message); }
+    return;
+  }
+  if(action==='username'){
+    const nu = prompt('Novo nome de usuário para "'+username+'" (3-32 caracteres: letras, números, . _ -):');
+    if(!nu) return;
+    try{
+      await api('POST','/admin/users/username',{username:username, newUsername:nu});
+      await loadUsers();
+      alert('Usuário definido! O cliente agora entra com "'+nu.trim().toLowerCase()+'" (o e-mail continua funcionando também).');
+    }catch(err){ alert('Erro: '+err.message); }
+    return;
+  }
+  if(action==='reset'){
+    try{
+      const data = await api('POST','/admin/users/reset',{username:username});
+      const link = location.origin + '/#reset=' + data.token;
+      try{ await navigator.clipboard.writeText(link); }catch(_){}
+      alert('Link de redefinição copiado! Envie ao cliente (válido até '+new Date(data.expires).toLocaleString('pt-BR')+'):\n\n'+link);
+    }catch(err){ alert('Erro: '+err.message); }
+    return;
+  }
+  try{
+    await api('POST','/admin/users/'+action,{username:username, days:30});
+    await loadUsers();
+  }catch(err){ alert('Erro: '+err.message); }
+}
+
+function logout(){
+  adminToken=''; try{ localStorage.removeItem('tunnel.admin'); }catch(_){}
+  location.reload();
+}
+
+open();
+</script>
+</body>
+</html>

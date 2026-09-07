@@ -1,0 +1,16 @@
+[Unit]
+Description=FRP Server (tunnel)
+After=network.target
+
+[Service]
+Type=simple
+User=tunnel
+Group=tunnel
+WorkingDirectory=/opt/tunnel
+ExecStart=/opt/tunnel/frps -c /opt/tunnel/frps.toml
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
