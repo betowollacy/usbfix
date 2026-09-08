@@ -34,8 +34,22 @@ fi
 echo "==> Copiando arquivos do servidor para /opt/tunnel/server"
 mkdir -p /opt/tunnel/server
 rsync -a --delete "$SRC_DIR/server/." /opt/tunnel/server/
-if [ ! -f /opt/tunnel/frps.toml ]; then
-    cp "$SRC_DIR/server/frps.toml" /opt/tunnel/frps.toml
+
+echo "==> Garantindo token/domínio no frps.toml"
+TOML=/opt/tunnel/frps.toml
+if [ ! -f "$TOML" ]; then
+    cp "$SRC_DIR/server/frps.toml" "$TOML"
+fi
+get_val() {
+    grep "^$1=" /etc/tunnel/env | head -1 | cut -d= -f2- | sed 's/^"//; s/"$//'
+}
+FRP_TOKEN="${TUNNEL_FRPS_TOKEN:-$(get_val TUNNEL_FRPS_TOKEN)}"
+SUB_DOMAIN="${TUNNEL_SUBDOMAIN_HOST:-$(get_val TUNNEL_SUBDOMAIN_HOST)}"
+if [ -n "$FRP_TOKEN" ]; then
+    sed -i 's/^auth\.token = .*/auth.token = "'"$FRP_TOKEN"'"/' "$TOML"
+fi
+if [ -n "$SUB_DOMAIN" ]; then
+    sed -i 's|^subdomainHost = .*|subdomainHost = "'"$SUB_DOMAIN"'"|; s|^# subdomainHost = .*|subdomainHost = "'"$SUB_DOMAIN"'"|' "$TOML"
 fi
 
 echo "==> Atualizando dependências da API"
