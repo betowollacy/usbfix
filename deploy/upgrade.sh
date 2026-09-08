@@ -36,7 +36,12 @@ fi
 
 echo "==> Copiando arquivos do servidor para /opt/tunnel/server"
 mkdir -p /opt/tunnel/server
-rsync -a --delete "$SRC_DIR/server/." /opt/tunnel/server/
+# site/downloads e data/ contêm arquivos locais (exe, banco) que NÃO ficam no git:
+# nunca apagar com --delete.
+rsync -a --delete \
+    --exclude 'site/downloads/' \
+    --exclude 'data/' \
+    "$SRC_DIR/server/." /opt/tunnel/server/
 
 echo "==> Garantindo token/domínio no frps.toml"
 TOML=/opt/tunnel/frps.toml
