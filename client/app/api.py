@@ -43,6 +43,9 @@ class Api:
     def health(self):
         return self._request("GET", "/api/health")
 
+    def downloads(self):
+        return self._request("GET", "/api/downloads")
+
     def register(self, username, password, email=""):
         return self._request("POST", "/api/register", {"username": username, "email": email, "password": password})
 

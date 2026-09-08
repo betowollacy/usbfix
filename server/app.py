@@ -17,7 +17,9 @@ from pydantic import BaseModel
 import config
 import database as db
 
-app = FastAPI(title="USB FIX", version="0.5.0")
+APP_VERSION = "0.5.0"
+
+app = FastAPI(title="USB FIX", version=APP_VERSION)
 
 _attempts = defaultdict(list)
 
@@ -117,6 +119,7 @@ class DownloadsBody(BaseModel):
     usbServerUrl: Optional[str] = None
     activationKey: Optional[str] = None
     appUrl: Optional[str] = None
+    appVersion: Optional[str] = None
 
 
 class PlanItem(BaseModel):
@@ -280,7 +283,7 @@ def downloads(authorization: Optional[str] = Header(None)):
     usb_client = db.get_setting("dl.usb.client.url", "")
     usb_server = db.get_setting("dl.usb.server.url", "")
     result = {
-        "app": {"version": "0.5.0", "name": "USB FIX", "url": app_url},
+        "app": {"version": current_app_version(), "name": "USB FIX", "url": app_url},
         "usbRedirector": {
             "client": {"name": "USB Redirector (Cliente)", "url": usb_client},
             "server": {"name": "USB Redirector (Servidor)", "url": usb_server},
@@ -305,6 +308,7 @@ def admin_get_downloads(authorization: Optional[str] = Header(None)):
         "usbServerUrl": db.get_setting("dl.usb.server.url", ""),
         "activationKey": db.get_setting("dl.usb.key", ""),
         "appUrl": db.get_setting("dl.app.url", "/downloads/USB-Fix.exe"),
+        "appVersion": db.get_setting("dl.app.version", current_app_version()),
     }
 
 
@@ -319,6 +323,8 @@ def admin_set_downloads(body: DownloadsBody, authorization: Optional[str] = Head
         db.set_setting("dl.usb.key", body.activationKey.strip())
     if body.appUrl is not None:
         db.set_setting("dl.app.url", body.appUrl.strip())
+    if body.appVersion is not None:
+        db.set_setting("dl.app.version", body.appVersion.strip())
     return admin_get_downloads(authorization)
 
 
@@ -449,6 +455,21 @@ SITE_DIR = Path(__file__).resolve().parent / "site"
 DOWNLOADS_DIR = SITE_DIR / "downloads"
 DOWNLOADS_DIR.mkdir(exist_ok=True)
 app.mount("/downloads", StaticFiles(directory=str(DOWNLOADS_DIR)), name="downloads")
+
+VERSION_FILE = Path(__file__).resolve().parent / "version.txt"
+
+
+def current_app_version():
+    override = (db.get_setting("dl.app.version") or "").strip()
+    if override:
+        return override
+    try:
+        value = VERSION_FILE.read_text(encoding="utf-8").strip()
+        if value:
+            return value
+    except Exception:
+        pass
+    return APP_VERSION
 
 
 @app.get("/", include_in_schema=False)

@@ -102,6 +102,26 @@ O script clona/puxa o repositório em `/opt/tunnel/src`, copia o `server/` para
 `/opt/tunnel/server`, atualiza as dependências e reinicia `frps` e `tunnel-api`
 via systemd. Requer `git` e `rsync` (já instalados pelo `deploy.sh`).
 
+## Atualização online do app do cliente
+
+O desktop app se atualiza sozinho pela rede, sem rebaixar outra versão:
+
+1. `client/app/config.py` — `VERSION` (versão local) e `server/version.txt`
+   (versão publicada pelo servidor) devem ter o mesmo valor atual.
+2. Ao subir uma nova versão:
+   - incremente `VERSION` no `config.py` e no `server/version.txt`;
+   - construa o exe (`build_tudo.bat`) e envie o `USB-Fix.exe` para a pasta
+     `server/site/downloads/` da VPS;
+   - na VPS rode `sudo bash deploy/upgrade.sh` (ou ajuste `dl.app.version` +
+     `dl.app.url` no painel `/admin`, se preferir sobrescrever por lá).
+3. No app, ao abrir, aparece "★ Nova versão vX disponível — atualizar"
+   (nas telas de login e portal). Ao clicar, o app baixa o novo exe, fecha,
+   substitui o arquivo e reabre sozinho.
+
+O servidor serve a versão atual em `GET /api/downloads` → `app.version` e o
+arquivo em `app.url`. No modo de desenvolvimento (rodando via Python) o app
+não substitui o executável — só baixa e avisa.
+
 ## Túnel real (frp)
 
 Sem os binários, rode `python client/download_frp.py` (baixa frpc/frps). No

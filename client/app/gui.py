@@ -14,6 +14,7 @@ from . import creds, logo, usb
 from .api import Api, ApiError
 from .config import API_BASE, APP_NAME, DATA_DIR, VERSION
 from .tunnel import Tunnel
+from . import updater
 
 BG = "#0f0d15"
 PANEL = "#171422"
@@ -35,14 +36,20 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("USB FIX")
-        self.geometry("420x640")
-        self.minsize(400, 600)
+        w, h = 380, 560
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        self.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2 - 20}")
+        self.minsize(355, 500)
+        self.withdraw()
         self.configure(fg_color=BG)
         self.api = Api(self._read_server())
         self.tunnel = Tunnel()
         self.tunnel.on_change(self._on_tunnel_change)
         self.user = None
         self._hb_on = False
+        self._update_checked = False
+        self._updating = False
+        self._update_data = None
         self.instance = self._load_instance()
         self._bg_tasks = queue.Queue()
         self._font_title = ctk.CTkFont(family=FONT, size=19, weight="bold")
@@ -63,6 +70,14 @@ class App(ctk.CTk):
         except Exception:
             self._logo_img = None
         try:
+            raw = base64.b64decode(logo.LOGO_B64)
+            img = Image.open(io.BytesIO(raw))
+            w, h = img.size
+            ch = 46
+            self._splash_logo = ctk.CTkImage(light_image=img, dark_image=img, size=(int(w * ch / h), ch))
+        except Exception:
+            self._splash_logo = None
+        try:
             self.iconphoto(True, tk.PhotoImage(data=logo.ICON_B64))
             self._icon16 = tk.PhotoImage(data=logo.ICON_B64)
             self.iconphoto(False, self._icon16)
@@ -78,6 +93,7 @@ class App(ctk.CTk):
         self._open_splash()
         self.poll_queue()
         self.after(1500, self._after_splash)
+        self.after(3000, self._check_update)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
     @staticmethod
@@ -155,6 +171,74 @@ class App(ctk.CTk):
             right_builder(row)
         ctk.CTkFrame(parent, height=3, fg_color=ACCENT, corner_radius=0).pack(fill="x", side="top")
 
+    def _add_update_label(self, parent):
+        lbl = ctk.CTkLabel(parent, text="", text_color=ACCENT,
+                           font=self._font_small, cursor="hand2")
+        lbl.pack(side="bottom", pady=(0, 6))
+        lbl.bind("<Button-1>", lambda e: self._do_update(lbl))
+        return lbl
+
+    def _set_update_text(self, text):
+        for w in (self.update_login, self.update_portal):
+            if w and w.winfo_exists():
+                w.configure(text=text)
+
+    def _check_update(self):
+        if self._update_checked or self._updating:
+            return
+        self._update_checked = True
+        self.bg(self.api.downloads, self._on_check_update)
+
+    def _on_check_update(self, data, err):
+        if err or not data:
+            return
+        app = data.get("app") or {}
+        version = (app.get("version") or "").strip()
+        url = (app.get("url") or "").strip()
+        if not version or not url or not updater.newer(version):
+            return
+        self._update_data = {"version": version, "url": url}
+        self._set_update_text(f"★ Nova versão v{version} disponível — atualizar")
+
+    def _do_update(self, lbl=None):
+        if self._updating or not self._update_data:
+            return
+        self._updating = True
+        self._set_update_text("Baixando atualização…")
+        self.bg(self._download_update, self._on_update_done)
+
+    def _download_update(self):
+        url = self._update_data["url"].strip()
+        if url.startswith("/"):
+            url = self.api.base.rstrip("/") + url
+        dest = updater.new_binary_path()
+        return updater.download(url, dest)
+
+    def _on_update_done(self, dest, err):
+        if err:
+            self._updating = False
+            self._set_update_text(f"⚠ Falha ao baixar atualização: {err}")
+            return
+        self._updating = False
+        if not self._confirm_update():
+            self._set_update_text(f"★ Atualização v{self._update_data['version']} disponível")
+            return
+        if updater.prepare_relaunch(dest):
+            self.after(200, self._on_close)
+        else:
+            self._set_update_text("Atualização baixada — reabra o app para concluir.")
+
+    def _confirm_update(self):
+        if not updater.is_frozen():
+            return True
+        from tkinter import messagebox
+        return messagebox.askyesno(
+            "USB FIX",
+            f"Nova versão v{self._update_data['version']} baixada.\n\n"
+            "O app será fechado e reaberto automaticamente. Continuar?",
+            parent=self,
+        )
+
     def _open_splash(self):
         self.withdraw()
         for s in (self.login, self.register, self.portal):
@@ -214,15 +298,18 @@ class App(ctk.CTk):
         self.splash_win.configure(fg_color=BG)
         self.splash_win.resizable(False, False)
         self.splash_win.overrideredirect(True)
-        w, h = 380, 230
+        w, h = 390, 250
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         self.splash_win.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2 - 30}")
         body = ctk.CTkFrame(self.splash_win, fg_color=BG, corner_radius=0)
         body.pack(fill="both", expand=True)
         ctk.CTkFrame(self.splash_win, height=4, fg_color=ACCENT, corner_radius=0).pack(fill="x", side="top")
-        ctk.CTkFrame(body, height=46, fg_color=HEADER_BG, corner_radius=0).pack(fill="x")
-        self._logo_pack(body).pack(pady=(8, 0))
-        ctk.CTkLabel(body, text=APP_NAME, text_color=TEXT, font=self._font_title).pack(pady=(10, 0))
+        ctk.CTkFrame(body, height=52, fg_color=HEADER_BG, corner_radius=0).pack(fill="x", side="top")
+        if self._splash_logo:
+            ctk.CTkLabel(body, text="", image=self._splash_logo, fg_color="transparent").pack(pady=(6, 0))
+        else:
+            ctk.CTkLabel(body, text="⚡", text_color=ACCENT, font=("Segoe UI", 26)).pack(pady=(8, 0))
+        ctk.CTkLabel(body, text=APP_NAME, text_color=TEXT, font=ctk.CTkFont(family=FONT, size=26, weight="bold")).pack(pady=(6, 0))
         ctk.CTkLabel(body, text="USB remoto por assinatura", text_color=MUTED,
                      font=self._font_small).pack(pady=(2, 14))
         self.spinner = ctk.CTkProgressBar(body, mode="indeterminate", width=150, height=6,
@@ -257,9 +344,13 @@ class App(ctk.CTk):
         self.login = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
         self._head_bar(self.login)
         pad = ctk.CTkFrame(self.login, fg_color=BG, corner_radius=0)
-        pad.pack(fill="both", expand=True, padx=34)
-        card = ctk.CTkFrame(pad, fg_color=PANEL, corner_radius=14, border_width=1, border_color=LINE)
-        card.pack(fill="both", expand=True, pady=(26, 10))
+        pad.pack(fill="both", expand=True, padx=28)
+        ctk.CTkFrame(pad, fg_color=BG, corner_radius=0).pack(fill="both", expand=True)
+        wrap = ctk.CTkFrame(pad, fg_color=BG, corner_radius=0)
+        wrap.pack(fill="x", pady=(8, 8))
+        ctk.CTkFrame(pad, fg_color=BG, corner_radius=0).pack(fill="both", expand=True)
+        card = ctk.CTkFrame(wrap, fg_color=PANEL, corner_radius=14, border_width=1, border_color=LINE)
+        card.pack(fill="x")
         inner = ctk.CTkFrame(card, fg_color=PANEL, corner_radius=0)
         inner.pack(fill="both", expand=True, padx=24, pady=24)
 
@@ -305,6 +396,7 @@ class App(ctk.CTk):
                                         font=self._font_small, cursor="hand2")
         self.link_server.pack(side="bottom", pady=(0, 24))
         self.link_server.bind("<Button-1>", lambda e: self._open_server_dialog())
+        self.update_login = self._add_update_label(self.login)
         ctk.CTkLabel(self.login, text=f"USB FIX v{VERSION}", text_color="#5a5670",
                      font=self._font_small).pack(side="bottom", pady=(0, 8))
 
@@ -312,9 +404,13 @@ class App(ctk.CTk):
         self.register = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
         self._head_bar(self.register)
         pad = ctk.CTkFrame(self.register, fg_color=BG, corner_radius=0)
-        pad.pack(fill="both", expand=True, padx=34)
-        card = ctk.CTkFrame(pad, fg_color=PANEL, corner_radius=14, border_width=1, border_color=LINE)
-        card.pack(fill="both", expand=True, pady=(26, 10))
+        pad.pack(fill="both", expand=True, padx=28)
+        ctk.CTkFrame(pad, fg_color=BG, corner_radius=0).pack(fill="both", expand=True)
+        wrap = ctk.CTkFrame(pad, fg_color=BG, corner_radius=0)
+        wrap.pack(fill="x", pady=(8, 8))
+        ctk.CTkFrame(pad, fg_color=BG, corner_radius=0).pack(fill="both", expand=True)
+        card = ctk.CTkFrame(wrap, fg_color=PANEL, corner_radius=14, border_width=1, border_color=LINE)
+        card.pack(fill="x")
         inner = ctk.CTkFrame(card, fg_color=PANEL, corner_radius=0)
         inner.pack(fill="both", expand=True, padx=24, pady=22)
 
@@ -533,6 +629,7 @@ class App(ctk.CTk):
                                         fg_color=PANEL2, hover_color="#2a2440", text_color=TEXT,
                                         font=self._font_small, corner_radius=8, cursor="hand2")
         self.change_btn.pack(side="right")
+        self.update_portal = self._add_update_label(self.portal)
         ctk.CTkLabel(self.portal, text=f"USB FIX v{VERSION}", text_color="#5a5670",
                      font=self._font_small).pack(side="bottom", pady=(0, 8))
 
