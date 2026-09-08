@@ -251,13 +251,15 @@ async function loadUsers(){
     const label = ({active:'Ativa', pending:'Pendente', blocked:'Bloqueada', expired:'Expirada'}[u.statusRaw]) || u.statusRaw;
     tr.innerHTML = '<td><b>'+(u.email||u.username)+'</b></td>'+
       '<td><span class="pill '+u.statusRaw+'" title="'+u.status+'">'+label+'</span>'+
-      (u.testMode ? ' <span class="pill active" title="Teste ativado manualmente">teste</span>' : '')+'</td>'+
+      (u.testMode ? ' <span class="pill active" title="Teste ativado manualmente">teste</span>' : '')+
+      (u.lifetime ? ' <span class="pill active" title="Licença vitalícia (parceiro)">vitalícia</span>' : '')+'</td>'+
       '<td>'+(u.endpoint ? u.endpoint+':'+u.port : '—')+'</td>'+
       '<td>'+(u.validUntil ? new Date(u.validUntil).toLocaleDateString('pt-BR') : '—')+'</td>'+
       '<td><div class="actions">'+
         '<button class="btn ghost small" data-a="approve">Liberar 30d</button>'+
         '<button class="btn ghost small" data-a="extend">Renovar 30d</button>'+
         '<button class="btn ghost small" data-a="block">Bloquear</button>'+
+        '<button class="btn ghost small" data-a="lifetime">'+ (u.lifetime ? 'Remover vitalícia' : 'Vitalícia') +'</button>'+
         '<button class="btn ghost small" data-a="test-mode">'+ (u.testMode ? 'Tirar teste' : 'Modo teste') +'</button>'+
         '<button class="btn ghost small" data-a="password">Definir senha</button>'+
         '<button class="btn ghost small" data-a="username">Definir usuário</button>'+
@@ -273,6 +275,15 @@ async function loadUsers(){
 
 async function userAction(username, action, ev){
   if(action==='delete' && !confirm('Excluir o cliente "'+username+'" e todas as conexões/pagamentos?')) return;
+  if(action==='lifetime'){
+    const enable = !(ev && ev.currentTarget.textContent.includes('Remover'));
+    try{
+      await api('POST','/admin/users/lifetime',{username:username, enabled:enable});
+      await loadUsers();
+      alert(enable ? 'Licença VITALÍCIA ativada para "'+username+'" — parceiro ativo para sempre.' : 'Licença vitalícia removida para "'+username+'".');
+    }catch(err){ alert('Erro: '+err.message); }
+    return;
+  }
   if(action==='test-mode'){
     const enable = !(ev && ev.currentTarget.textContent.includes('Tirar'));
     try{

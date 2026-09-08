@@ -272,7 +272,7 @@ function renderAcct(){
   $('#meStatus').innerHTML = statusPill(session.status);
   $('#meSub').textContent = session.endpoint || '—';
   $('#mePort').textContent = session.port || '—';
-  $('#meValid').textContent = session.validUntil ? new Date(session.validUntil).toLocaleDateString('pt-BR') : '—';
+  $('#meValid').textContent = session.lifetime ? 'Vitalícia' : (session.validUntil ? new Date(session.validUntil).toLocaleDateString('pt-BR') : '—');
 }
 
 async function doCheckout(e){

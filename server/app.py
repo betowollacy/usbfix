@@ -591,6 +591,7 @@ def admin_list_users(authorization: Optional[str] = Header(None)):
     for r in db.list_users():
         state = db.public_state(r) | {"username": r["username"], "statusRaw": r["status"]}
         state["testMode"] = bool(r.get("test_mode"))
+        state["lifetime"] = bool(r.get("lifetime"))
         out.append(state)
     return out
 
@@ -605,6 +606,16 @@ def admin_user_test_mode(body: UserTestModeBody, authorization: Optional[str] = 
     require_admin(authorization)
     try:
         rec = db.set_user_test_mode(body.username, body.enabled)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return db.public_state(rec)
+
+
+@app.post("/api/admin/users/lifetime")
+def admin_user_lifetime(body: UserTestModeBody, authorization: Optional[str] = Header(None)):
+    require_admin(authorization)
+    try:
+        rec = db.set_user_lifetime(body.username, body.enabled)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return db.public_state(rec)

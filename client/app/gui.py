@@ -745,8 +745,12 @@ class App(ctk.CTk):
     def _render_valid(self, u):
         status = u["status"]
         if status == "active":
-            self.trial_lbl.configure(text=f"Ativo até {self._format_valid(u)} · trocas de nome: {u['changesLeft']}",
-                                     text_color=OK)
+            if u.get("lifetime"):
+                self.trial_lbl.configure(text="Licença VITALÍCIA (parceria)",
+                                         text_color=OK)
+            else:
+                self.trial_lbl.configure(text=f"Ativo até {self._format_valid(u)} · trocas de nome: {u['changesLeft']}",
+                                         text_color=OK)
         elif status == "pending":
             self.trial_lbl.configure(text="⏳ Conta criada — aguardando liberação do vendedor.", text_color=WARN)
         elif status in ("blocked", "expired"):
