@@ -42,10 +42,10 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("USB FIX")
-        w, h = 380, 600
+        w, h = 360, 560
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         self.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2 - 20}")
-        self.minsize(360, 560)
+        self.minsize(340, 520)
         self.withdraw()
         self.configure(fg_color=BG)
         self.api = Api(self._read_server())
@@ -57,6 +57,8 @@ class App(ctk.CTk):
         self._updating = False
         self._update_data = None
         self._pass_entries = []
+        self.save_login_var = tk.BooleanVar(value=True)
+        self.show_pass_var = tk.BooleanVar(value=False)
         self.instance = self._load_instance()
         self._bg_tasks = queue.Queue()
         self._font_title = ctk.CTkFont(family=FONT, size=19, weight="bold")
@@ -425,8 +427,8 @@ class App(ctk.CTk):
         self.pass_entry.bind("<Return>", lambda e: self._do_login())
         self._pass_entries.append(self.pass_entry)
 
-        self.save_login_var = tk.BooleanVar(value=True)
-        self.show_pass_var = tk.BooleanVar(value=False)
+        self.save_login_var.set(True)
+        self.show_pass_var.set(False)
         opts = ctk.CTkFrame(inner, fg_color="transparent", corner_radius=0)
         opts.pack(fill="x", pady=(2, 14))
         self.chk_save = ctk.CTkCheckBox(opts, text="Lembrar de mim", variable=self.save_login_var,
@@ -465,7 +467,6 @@ class App(ctk.CTk):
         self.reg_pass.bind("<Return>", lambda e: self._do_register())
         self._pass_entries.append(self.reg_pass)
 
-        self.show_pass_var = tk.BooleanVar(value=False)
         self.chk_show = ctk.CTkCheckBox(inner, text="Mostrar senha", variable=self.show_pass_var,
                                         onvalue=True, offvalue=False, fg_color=ACCENT, hover_color=ACCENT_DARK,
                                         checkmark_color="white", border_color=MUTED, text_color=MUTED,
@@ -619,35 +620,7 @@ class App(ctk.CTk):
         self.sub_msg = ctk.CTkLabel(cfg, text="", text_color=TEXT, font=self._font_small, anchor="w")
         self.sub_msg.pack(fill="x", padx=12, pady=(0, 8))
 
-        self.user_sec = ctk.CTkFrame(inner, fg_color="transparent", corner_radius=0)
-        self.user_sec.pack(fill="x", pady=(0, 12))
-        ctk.CTkLabel(self.user_sec, text="Usuário de login", text_color=MUTED, font=self._font_small,
-                     anchor="w").grid(row=0, column=0, sticky="w", pady=(0, 4))
-        userbox = self._box(self.user_sec)
-        brows = ctk.CTkFrame(userbox, fg_color="transparent", corner_radius=0)
-        brows.pack(fill="x", padx=12, pady=8)
-        self.user_inp = ctk.CTkEntry(brows, fg_color=PANEL, border_width=0, text_color=TEXT,
-                                     font=self._font_small, corner_radius=6)
-        self.user_inp.pack(side="left", fill="x", expand=True, ipady=2, padx=(0, 8))
-        self.user_save = ctk.CTkButton(brows, text="Definir", command=self._save_my_username, width=74,
-                                       fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
-                                       font=self._font_small, corner_radius=8, cursor="hand2")
-        self.user_save.pack(side="right")
-        self.user_msg = ctk.CTkLabel(userbox, text="", text_color=MUTED, font=self._font_small, anchor="w")
-        self.user_msg.pack(fill="x", padx=12, pady=(0, 8))
-        self.userbox = userbox
-        self.username_plain = ctk.CTkLabel(self.user_sec, text="", text_color=TEXT,
-                                           font=self._font_mono, anchor="w")
-
-        usbrow = ctk.CTkFrame(inner, fg_color="transparent", corner_radius=0)
-        usbrow.pack(fill="x", pady=(0, 14))
-        ctk.CTkLabel(usbrow, text="Porta local do USB Redirector", text_color=MUTED,
-                     font=self._font_small).pack(side="left")
         self.local_port_var = tk.StringVar(value=os.getenv("TUNNEL_LOCAL_PORT", "32038"))
-        self.local_port_entry = ctk.CTkEntry(usbrow, textvariable=self.local_port_var, fg_color=PANEL2,
-                                             border_width=0, text_color=TEXT, justify="center",
-                                             font=self._font_small, corner_radius=8, width=92)
-        self.local_port_entry.pack(side="right", ipady=2)
 
         self.btn_conn = ctk.CTkButton(inner, text="Conectar", command=self._toggle_connect, height=42,
                                       fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
@@ -694,21 +667,10 @@ class App(ctk.CTk):
         u = self.user
         domain = u["endpoint"].split(".", 1)[-1] if u.get("endpoint") else ""
         self.endpoint_lbl.configure(text=f"{u['endpoint']}:{u['port']}" if u.get("endpoint") else "—:—")
-        self.key_lbl.configure(text=f"Conta: {u.get('email') or u['username']}")
+        self.key_lbl.configure(text=f"usuario: {u['username']}")
         self.sub_inp.delete(0, "end")
         self.sub_inp.insert(0, u["subdomain"] or "")
         self.sub_suffix.configure(text=f".{domain}" if domain else "")
-        email = (u.get("email") or "").strip().lower()
-        if email and u["username"].strip().lower() == email:
-            self.username_plain.grid_forget()
-            self.user_inp.delete(0, "end")
-            self.user_inp.insert(0, u["username"].split("@")[0])
-            self.user_msg.configure(text="Entre no app com esse nome após definir.", text_color=MUTED)
-            self.userbox.grid(row=1, column=0, sticky="ew")
-        else:
-            self.userbox.grid_forget()
-            self.username_plain.configure(text=f"Usuário de login: {u['username']}")
-            self.username_plain.grid(row=1, column=0, sticky="w")
         self._render_valid(u)
         self._update_pill()
 
@@ -747,23 +709,6 @@ class App(ctk.CTk):
             self.sub_msg.configure(text=f"⚠ {err}", text_color=ERR)
             return
         self.sub_msg.configure(text="Nome atualizado!", text_color=OK)
-        self.user = user
-        self._refresh_portal()
-
-    def _save_my_username(self):
-        value = self.user_inp.get().strip()
-        if not value:
-            self.user_msg.configure(text="Digite o nome de usuário desejado.", text_color=ERR)
-            return
-        self.user_save.configure(state="disabled")
-        self.bg(self.api.set_my_username, self._on_my_username, value, self.instance)
-
-    def _on_my_username(self, user, err):
-        self.user_save.configure(state="normal")
-        if err:
-            self.user_msg.configure(text=f"⚠ {err}", text_color=ERR)
-            return
-        self.user_msg.configure(text="Usuário de login definido!", text_color=OK)
         self.user = user
         self._refresh_portal()
 
@@ -818,7 +763,7 @@ class App(ctk.CTk):
         if running:
             self.pill.configure(text="conectado", text_color="#00241a", fg_color=OK)
             if self.user and self.user.get("endpoint"):
-                self.endpoint_lbl.configure(text=f"✓ {self.user['endpoint']}:{self.user.get('port')}",
+                self.endpoint_lbl.configure(text=f"{self.user['endpoint']}:{self.user.get('port')}",
                                             text_color=OK)
         elif self.user and self.user.get("status") in ("blocked", "expired", "unused", "pending"):
             self.pill.configure(text="suspensa", text_color="white", fg_color=ERR)
