@@ -14,6 +14,9 @@ command -v rsync >/dev/null 2>&1 || { echo "ERRO: rsync não instalado. Rode: ap
 
 echo "==> Buscando versão em ${REPO_URL}"
 
+# Evita "dubious ownership" quando rodado como root sobre clone criado por outro usuário
+git config --global --add safe.directory "$SRC_DIR" 2>/dev/null || true
+
 # Garante/clone do repositório em /opt/tunnel/src (upgrade independente da pasta do deploy inicial)
 if [ ! -d "$SRC_DIR/.git" ]; then
     echo "==> Clonando repositório em $SRC_DIR"
@@ -68,7 +71,8 @@ rsync -a "$SRC_DIR/deploy/systemd/." /opt/tunnel/deploy/systemd/
 chmod +x /opt/tunnel/deploy/*.sh
 
 echo "==> Ajustando permissões"
-chown -R tunnel:tunnel /opt/tunnel
+chown -R tunnel:tunnel /opt/tunnel/server /opt/tunnel/deploy /opt/tunnel/data /opt/tunnel/venv
+chown tunnel:tunnel /opt/tunnel/frps /opt/tunnel/frps.toml 2>/dev/null || true
 
 echo "==> Reiniciando serviços"
 systemctl restart frps tunnel-api
