@@ -94,12 +94,43 @@
 
 <main>
   <div class="wrap">
-    <h1>Planos e compra</h1>
-    <p class="lead">Escolha o plano, gere o Pix e a liberação é automática após a confirmação.</p>
+    <div id="plansWrap">
+      <h1 id="pageTitle">Planos e compra</h1>
+      <p class="lead" id="pageLead">Escolha o plano, gere o Pix e a liberação é automática após a confirmação.</p>
 
-    <div class="grid plans" id="plansGrid"></div>
+      <div class="grid plans" id="plansGrid"></div>
 
-    <div style="height:22px"></div>
+      <div style="height:22px"></div>
+    </div>
+
+    <div class="card hidden" id="dlKeyBox">
+      <h2 style="margin:0 0 6px">Key de ativação do USB Redirector</h2>
+      <p style="color:var(--muted); font-size:14px; margin-bottom:10px">Use esta key na ativação do USB Redirector.</p>
+      <div class="pixcode" id="dlKey"></div>
+      <button class="btn ghost copybtn" id="dlKeyBtn" onclick="copyKey()">Copiar key</button>
+    </div>
+
+    <div class="card hidden" id="dlBox">
+      <h2 style="margin:0 0 6px">Downloads</h2>
+      <p style="color:var(--muted); font-size:14px; margin-bottom:12px">Baixe o app e o USB Redirector para montar sua conexão.</p>
+      <div class="grid plans">
+        <div class="card plan">
+          <h3>USB FIX — app</h3>
+          <p>Instale no computador onde está o equipamento conectado.</p>
+          <a id="dlAppC" class="btn cta" target="_blank" rel="noopener">Baixar app</a>
+        </div>
+        <div class="card plan">
+          <h3>USB Redirector — Cliente</h3>
+          <p>Instale no computador de trabalho, onde você usa o dispositivo remoto.</p>
+          <a id="dlUsbCliC" class="btn cta" target="_blank" rel="noopener">Baixar cliente</a>
+        </div>
+        <div class="card plan">
+          <h3>USB Redirector — Servidor</h3>
+          <p>Instale junto com o nosso app, na máquina onde o USB está conectado.</p>
+          <a id="dlUsbSrvC" class="btn cta" target="_blank" rel="noopener">Baixar servidor</a>
+        </div>
+      </div>
+    </div>
 
     <div class="hidden" id="signInBox">
       <div class="signin">
@@ -113,7 +144,8 @@
 
     <div class="cols hidden" id="acctBox">
       <div class="card">
-        <h2>Minha conta</h2>
+        <h2 style="display:inline-block; margin-right:10px">Minha conta</h2>
+        <a href="javascript:void(0)" onclick="showPlans()" style="font-size:13px">Ver planos e renovar →</a>
         <div class="statusrow"><span>Usuário</span><b id="meUser"></b></div>
         <div class="statusrow"><span>Status</span><span id="meStatus"></span></div>
         <div class="statusrow"><span>Endereço</span><b id="meSub"></b></div>
@@ -143,35 +175,6 @@
           <div class="pixcode" id="qrText"></div>
         </div>
         <div id="payMsg" class="msg"></div>
-      </div>
-    </div>
-
-    <div class="card hidden" id="dlKeyBox" style="margin-top:20px">
-      <h2 style="margin:0 0 6px">Key de ativação do USB Redirector</h2>
-      <p style="color:var(--muted); font-size:14px; margin-bottom:10px">Use esta key na ativação do USB Redirector.</p>
-      <div class="pixcode" id="dlKey"></div>
-      <button class="btn ghost copybtn" id="dlKeyBtn" onclick="copyKey()">Copiar key</button>
-    </div>
-
-    <div class="card hidden" id="dlBox" style="margin-top:20px">
-      <h2 style="margin:0 0 6px">Downloads</h2>
-      <p style="color:var(--muted); font-size:14px; margin-bottom:12px">Baixe o app e o USB Redirector para montar sua conexão.</p>
-      <div class="grid plans">
-        <div class="card plan">
-          <h3>USB FIX — app</h3>
-          <p>Instale no computador onde está o equipamento conectado.</p>
-          <a id="dlAppC" class="btn cta" target="_blank" rel="noopener">Baixar app</a>
-        </div>
-        <div class="card plan">
-          <h3>USB Redirector — Cliente</h3>
-          <p>Instale no computador de trabalho, onde você usa o dispositivo remoto.</p>
-          <a id="dlUsbCliC" class="btn cta" target="_blank" rel="noopener">Baixar cliente</a>
-        </div>
-        <div class="card plan">
-          <h3>USB Redirector — Servidor</h3>
-          <p>Instale junto com o nosso app, na máquina onde o USB está conectado.</p>
-          <a id="dlUsbSrvC" class="btn cta" target="_blank" rel="noopener">Baixar servidor</a>
-        </div>
       </div>
     </div>
   </div>
@@ -392,6 +395,7 @@ function logout(){
     $('#signInBox').classList.remove('hidden');
   }else{
     $('#btnSair').classList.remove('hidden');
+    $('#plansWrap').classList.add('hidden');
     $('#acctBox').classList.remove('hidden');
     session = session || JSON.parse(localStorage.getItem('tunnel.user') || 'null');
     renderAcct();
@@ -399,6 +403,11 @@ function logout(){
     applySavedPlan();
   }
 })();
+
+function showPlans(){
+  $('#plansWrap').classList.remove('hidden');
+  window.scrollTo({top:0, behavior:'smooth'});
+}
 </script>
 </body>
 </html>

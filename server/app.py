@@ -474,17 +474,17 @@ def current_app_version():
 
 @app.get("/", include_in_schema=False)
 def index():
-    return FileResponse(SITE_DIR / "index.html")
+    return FileResponse(SITE_DIR / "index.html", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/cadastro", include_in_schema=False)
 def cadastro_page():
-    return FileResponse(SITE_DIR / "cadastro.html")
+    return FileResponse(SITE_DIR / "cadastro.html", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/comprar", include_in_schema=False)
 def comprar_page():
-    return FileResponse(SITE_DIR / "comprar.html")
+    return FileResponse(SITE_DIR / "comprar.html", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/admin", include_in_schema=False)
