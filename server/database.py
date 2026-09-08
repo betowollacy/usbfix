@@ -573,10 +573,7 @@ def user_sessions(user_id):
 
 
 def peers_for_port(port):
-    """Lista conexões TCP estabelecidas na porta pública do túnel (via ss).
-
-    Tenta resolver o nome do PC (DNS reverso) para cada IP, sem bloquear.
-    """
+    """Lista conexões TCP estabelecidas na porta pública do túnel (via ss)."""
     if not port:
         return []
     try:
@@ -589,28 +586,16 @@ def peers_for_port(port):
     raw = []
     for line in proc.stdout.splitlines():
         parts = line.split()
-        if len(parts) >= 5:
-            remote = parts[4]
+        if len(parts) >= 4:
+            remote = parts[-1]
             try:
                 host, rport = remote.rsplit(":", 1)
             except ValueError:
                 continue
             host = host.strip("[]")
+            if host.startswith("::ffff:"):
+                host = host[7:]
             raw.append({"host": host, "port": int(rport or 0)})
-
-    def lookup(host):
-        try:
-            return socket.gethostbyaddr(host)[0]
-        except Exception:
-            return None
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
-        futures = {ex.submit(lookup, p["host"]): p for p in raw}
-        for fut, peer in futures.items():
-            try:
-                peer["name"] = fut.result(timeout=2) or None
-            except Exception:
-                peer["name"] = None
     return raw
 
 

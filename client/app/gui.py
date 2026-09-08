@@ -794,13 +794,7 @@ class App(ctk.CTk):
         if not peers:
             self.peers_lbl.configure(text="Aguardando cliente…", text_color=MUTED)
         else:
-            lines = []
-            for p in peers:
-                name = (p.get("name") or "").strip()
-                if name and name != p["host"]:
-                    lines.append(f"🖥 {name}  ({p['host']}:{p['port']})")
-                else:
-                    lines.append(f"🖥 {p['host']}:{p['port']}")
+            lines = [f"🖥 {p['host']}:{p['port']}" for p in peers]
             self.peers_lbl.configure(text="\n".join(lines), text_color=OK)
 
     def _heartbeat(self):
