@@ -157,9 +157,11 @@ def register(body: RegisterBody, request: Request):
     rate_limit(client_ip(request), "register")
     identifier = (body.username or body.email).strip()
     try:
-        db.register_user(identifier, body.password, email=(body.email or ""))
+        rec = db.register_user(identifier, body.password, email=(body.email or ""))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    if db.effective_status(rec) == "active":
+        return {"ok": True, "message": "conta criada e liberada! Aproveite sua assinatura."}
     return {"ok": True, "message": "conta criada, aguarde liberação do vendedor"}
 
 
@@ -547,6 +549,23 @@ def plan_view():
 def admin_get_plans(authorization: Optional[str] = Header(None)):
     require_admin(authorization)
     return {"plans": plans_view()}
+
+
+@app.get("/api/admin/test-mode")
+def admin_test_mode(authorization: Optional[str] = Header(None)):
+    require_admin(authorization)
+    return {"enabled": db.test_mode()}
+
+
+class TestModeBody(BaseModel):
+    enabled: bool = True
+
+
+@app.post("/api/admin/test-mode")
+def admin_set_test_mode(body: TestModeBody, authorization: Optional[str] = Header(None)):
+    require_admin(authorization)
+    db.set_setting("test.mode", "1" if body.enabled else "0")
+    return {"enabled": db.test_mode()}
 
 
 @app.post("/api/admin/plans")

@@ -70,6 +70,17 @@
   </div>
 
   <div id="panel" class="hidden">
+    <div class="bar" style="margin-bottom:6px">
+      <h2 style="margin:0">Modo teste</h2>
+      <span class="spacer"></span>
+      <button class="btn" id="testBtn" onclick="toggleTest()">Carregando…</button>
+    </div>
+    <p style="color:var(--muted); font-size:13px; margin-top:-6px">
+      Com o teste ligado, qualquer cliente consegue entrar e testar a conexão (mesmo sem liberação), até você desligar.
+      Os cadastros até <b>08/10/2026</b> já começam ativos com 30 dias (promoção de lançamento).
+    </p>
+    <div id="testMsg" class="msg"></div>
+
     <div class="card">
       <h2>Downloads e key</h2>
       <form class="form" onsubmit="return saveDownloads(event)">
@@ -112,6 +123,7 @@
 const $ = s => document.querySelector(s);
 let adminToken = localStorage.getItem('tunnel.admin') || '';
 let plans = [];
+let testEnabled = false;
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
 
@@ -137,7 +149,7 @@ async function open(){
     await api('GET','/admin/downloads');
     $('#auth').classList.add('hidden');
     $('#panel').classList.remove('hidden');
-    await loadDownloads(); await loadPlans(); await loadUsers();
+    await Promise.all([loadTestMode(), loadDownloads(), loadPlans(), loadUsers()]);
     return true;
   }catch(err){
     if(adminToken){ $('#authMsg').textContent = 'Token inválido: '+err.message; $('#authMsg').className='msg show err'; }
@@ -145,6 +157,32 @@ async function open(){
     $('#panel').classList.add('hidden');
     return false;
   }
+}
+
+async function loadTestMode(){
+  const d = await api('GET','/admin/test-mode');
+  testEnabled = !!d.enabled;
+  renderTestBtn();
+}
+
+function renderTestBtn(){
+  const b = $('#testBtn');
+  b.textContent = testEnabled ? 'Desligar teste' : 'Ligar teste';
+  b.style.background = testEnabled
+    ? 'linear-gradient(135deg, var(--ok), #1a9e5c)'
+    : 'linear-gradient(135deg, var(--accent), var(--accent2))';
+}
+
+async function toggleTest(){
+  try{
+    const d = await api('POST','/admin/test-mode',{enabled: !testEnabled});
+    testEnabled = !!d.enabled;
+    renderTestBtn();
+    const m = $('#testMsg');
+    m.textContent = testEnabled ? 'Teste LIGADO — todos os clientes podem entrar e testar agora.' : 'Teste desligado — login volta a exigir liberação.';
+    m.className = 'msg show ' + (testEnabled ? 'ok' : 'err');
+    setTimeout(()=> m.className='msg', 3500);
+  }catch(err){ alert('Erro: '+err.message); }
 }
 
 async function loadDownloads(){
@@ -210,8 +248,9 @@ async function loadUsers(){
   tbody.innerHTML='';
   for(const u of users){
     const tr = document.createElement('tr');
+    const label = ({active:'Ativa', pending:'Pendente', blocked:'Bloqueada', expired:'Expirada'}[u.statusRaw]) || u.statusRaw;
     tr.innerHTML = '<td><b>'+(u.email||u.username)+'</b></td>'+
-      '<td><span class="pill '+u.statusRaw+'">'+u.status+'</span></td>'+
+      '<td><span class="pill '+u.statusRaw+'" title="'+u.status+'">'+label+'</span></td>'+
       '<td>'+(u.endpoint ? u.endpoint+':'+u.port : '—')+'</td>'+
       '<td>'+(u.validUntil ? new Date(u.validUntil).toLocaleDateString('pt-BR') : '—')+'</td>'+
       '<td><div class="actions">'+

@@ -185,6 +185,26 @@ def mark_reset_used(reset_id):
 
 # --- nomes / portas ----------------------------------------------------
 
+PROMO_END = datetime(2026, 10, 8, 23, 59, 59, tzinfo=timezone.utc)
+
+
+def promo_active():
+    return utcnow() <= PROMO_END
+
+
+def test_mode():
+    return get_setting("test.mode") == "1"
+
+
+def _activate_user(conn, rec, days, now):
+    allocate_endpoints(conn, rec["id"])
+    if not rec.get("token"):
+        conn.execute("UPDATE users SET token = ? WHERE id = ?", (new_token(), rec["id"]))
+    conn.execute(
+        "UPDATE users SET status = 'active', valid_until = ?, changes_left = ?, approved_at = ? WHERE id = ?",
+        (iso(now + timedelta(days=days)), SUBDOMAIN_MAX_CHANGES, iso(now), rec["id"]),
+    )
+
 def slugify_subdomain(value):
     clean = "".join(c.lower() for c in value if c.isalnum() or c == "-")
     return clean.strip("-")[:32]
@@ -232,20 +252,31 @@ def register_user(identifier, password, email=""):
     if email and not EMAIL_RE.match(email):
         raise ValueError("e-mail inválido")
     now = iso(utcnow())
+    promo = promo_active()
     with connect() as conn:
-        exists = conn.execute(
-            "SELECT 1 FROM users WHERE username = ? OR (email IS NOT NULL AND email = ?)",
-            (username, email),
-        ).fetchone()
-        if exists:
-            raise ValueError("usuário já cadastrado")
+        conn.execute("BEGIN IMMEDIATE")
         try:
+            exists = conn.execute(
+                "SELECT 1 FROM users WHERE username = ? OR (email IS NOT NULL AND email = ?)",
+                (username, email),
+            ).fetchone()
+            if exists:
+                raise ValueError("usuário já cadastrado")
+            status = "active" if promo else "pending"
             conn.execute(
-                "INSERT INTO users (username, email, password, status, registered_at) VALUES (?, ?, ?, 'pending', ?)",
-                (username, email or None, hash_password(password), now),
+                "INSERT INTO users (username, email, password, status, registered_at) VALUES (?, ?, ?, ?, ?)",
+                (username, email or None, hash_password(password), status, now),
             )
+            row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+            if promo:
+                _activate_user(conn, dict(row), SUBSCRIPTION_DAYS, datetime.now(timezone.utc))
+            conn.commit()
         except sqlite3.IntegrityError:
+            conn.rollback()
             raise ValueError("usuário já cadastrado")
+        except Exception:
+            conn.rollback()
+            raise
     return get_user(username)
 
 
@@ -297,6 +328,8 @@ def login_user(raw_identifier, password):
 def effective_status(rec):
     if rec["status"] in ("blocked",):
         return "blocked"
+    if test_mode():
+        return "active"
     valid = parsable(rec.get("valid_until"))
     if valid and datetime.now(timezone.utc) > valid:
         return "expired"
