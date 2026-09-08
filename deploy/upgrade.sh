@@ -34,7 +34,9 @@ fi
 echo "==> Copiando arquivos do servidor para /opt/tunnel/server"
 mkdir -p /opt/tunnel/server
 rsync -a --delete "$SRC_DIR/server/." /opt/tunnel/server/
-cp "$SRC_DIR/server/frps.toml" /opt/tunnel/frps.toml
+if [ ! -f /opt/tunnel/frps.toml ]; then
+    cp "$SRC_DIR/server/frps.toml" /opt/tunnel/frps.toml
+fi
 
 echo "==> Atualizando dependências da API"
 /opt/tunnel/venv/bin/pip install -q --upgrade pip
@@ -50,6 +52,9 @@ mkdir -p /opt/tunnel/deploy/systemd
 cp "$SRC_DIR/deploy/"*.sh /opt/tunnel/deploy/
 rsync -a "$SRC_DIR/deploy/systemd/." /opt/tunnel/deploy/systemd/
 chmod +x /opt/tunnel/deploy/*.sh
+
+echo "==> Ajustando permissões"
+chown -R tunnel:tunnel /opt/tunnel
 
 echo "==> Reiniciando serviços"
 systemctl restart frps tunnel-api
