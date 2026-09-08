@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT,
     password TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
+    test_mode INTEGER NOT NULL DEFAULT 0,
     subdomain TEXT UNIQUE,
     server_port INTEGER UNIQUE,
     token TEXT UNIQUE,
@@ -90,6 +91,8 @@ def init_db():
         cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
         if "email" not in cols:
             conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
+        if "test_mode" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN test_mode INTEGER NOT NULL DEFAULT 0")
         conn.execute("UPDATE users SET email = username WHERE email IS NULL OR email = ''")
 
 
@@ -328,7 +331,7 @@ def login_user(raw_identifier, password):
 def effective_status(rec):
     if rec["status"] in ("blocked",):
         return "blocked"
-    if test_mode():
+    if test_mode() or rec.get("test_mode"):
         return "active"
     valid = parsable(rec.get("valid_until"))
     if valid and datetime.now(timezone.utc) > valid:
@@ -410,6 +413,16 @@ def block_user(raw_username):
         raise ValueError("usuário inválido")
     with connect() as conn:
         conn.execute("UPDATE users SET status = 'blocked' WHERE id = ?", (rec["id"],))
+    return get_user(username)
+
+
+def set_user_test_mode(raw_username, enabled):
+    username = (raw_username or "").strip().lower()
+    rec = get_user(username)
+    if not rec:
+        raise ValueError("usuário inválido")
+    with connect() as conn:
+        conn.execute("UPDATE users SET test_mode = ? WHERE id = ?", (1 if enabled else 0, rec["id"]))
     return get_user(username)
 
 

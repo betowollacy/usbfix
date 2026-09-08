@@ -587,7 +587,27 @@ def admin_set_plans(body: PlansBody, authorization: Optional[str] = Header(None)
 @app.get("/api/admin/users")
 def admin_list_users(authorization: Optional[str] = Header(None)):
     require_admin(authorization)
-    return [db.public_state(r) | {"username": r["username"], "statusRaw": r["status"]} for r in db.list_users()]
+    out = []
+    for r in db.list_users():
+        state = db.public_state(r) | {"username": r["username"], "statusRaw": r["status"]}
+        state["testMode"] = bool(r.get("test_mode"))
+        out.append(state)
+    return out
+
+
+class UserTestModeBody(BaseModel):
+    username: str
+    enabled: bool = True
+
+
+@app.post("/api/admin/users/test-mode")
+def admin_user_test_mode(body: UserTestModeBody, authorization: Optional[str] = Header(None)):
+    require_admin(authorization)
+    try:
+        rec = db.set_user_test_mode(body.username, body.enabled)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return db.public_state(rec)
 
 
 @app.post("/api/admin/users/approve")
