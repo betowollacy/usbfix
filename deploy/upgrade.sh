@@ -48,7 +48,7 @@ systemctl daemon-reload
 echo "==> Salvando scripts de deploy em /opt/tunnel/deploy"
 mkdir -p /opt/tunnel/deploy/systemd
 cp "$SRC_DIR/deploy/"*.sh /opt/tunnel/deploy/
-cp "$SRC_DIR/deploy/systemd/." /opt/tunnel/deploy/systemd/
+rsync -a "$SRC_DIR/deploy/systemd/." /opt/tunnel/deploy/systemd/
 chmod +x /opt/tunnel/deploy/*.sh
 
 echo "==> Reiniciando serviços"
