@@ -66,6 +66,7 @@ class LoginBody(BaseModel):
     username: str = ""
     password: str
     instance: Optional[str] = None
+    deviceName: Optional[str] = None
 
 
 class SubdomainBody(BaseModel):
@@ -85,6 +86,7 @@ class ResetBody(BaseModel):
 class TunnelEventBody(BaseModel):
     status: str
     instance: Optional[str] = None
+    deviceName: Optional[str] = None
 
 
 class UserActionBody(BaseModel):
@@ -182,6 +184,8 @@ def login(body: LoginBody, request: Request):
             status_code=403,
             detail="conexão já ativa em outro computador com esta conta. Encerre o app no outro computador para entrar aqui.",
         )
+    if body.deviceName:
+        db.set_device_name(rec["username"], body.deviceName)
     return {"token": db.get_user(rec["username"])["token"], "user": db.public_state(rec)}
 
 
@@ -274,6 +278,8 @@ def tunnel_event(body: TunnelEventBody, rec=Depends(extract_token)):
                 status_code=409,
                 detail="conexão já ativa em outro computador com esta conta.",
             )
+        if body.deviceName:
+            db.set_device_name(rec["username"], body.deviceName)
     else:
         db.end_session(rec["id"], body.instance or None)
     return {"ok": True}

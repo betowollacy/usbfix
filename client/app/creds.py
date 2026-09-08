@@ -12,11 +12,12 @@ def _unobfuscate(text):
     return base64.b64decode(text.encode()).decode()
 
 
-def save(token, username, remember=True):
+def save(token, username, password="", remember=True):
     data = {}
     with open(CREDS_FILE, "w", encoding="utf-8") as fh:
         data["token"] = _obfuscate(token)
         data["username"] = _obfuscate(username)
+        data["password"] = _obfuscate(password)
         data["remember"] = remember
         json.dump(data, fh)
 
@@ -30,6 +31,36 @@ def load():
         return {"token": _unobfuscate(data["token"]), "username": _unobfuscate(data["username"])}
     except Exception:
         return None
+
+
+def fields():
+    """Usuário/senha salvos para preencher o login, mesmo sem auto-login."""
+    try:
+        with open(CREDS_FILE, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        return {
+            "username": _unobfuscate(data.get("username", "")),
+            "password": _unobfuscate(data.get("password", "")),
+        }
+    except Exception:
+        return {}
+
+
+def unremember():
+    """Mantém usuário/senha, mas desliga o auto-login (usado no Saír)."""
+    creds = fields()
+    try:
+        with open(CREDS_FILE, "w", encoding="utf-8") as fh:
+            json.dump(
+                {
+                    "username": _obfuscate(creds.get("username", "")),
+                    "password": _obfuscate(creds.get("password", "")),
+                    "remember": False,
+                },
+                fh,
+            )
+    except Exception:
+        pass
 
 
 def clear():

@@ -1,6 +1,7 @@
 import base64
 import io
 import os
+import platform
 import queue
 import threading
 import tkinter as tk
@@ -60,6 +61,7 @@ class App(ctk.CTk):
         self.save_login_var = tk.BooleanVar(value=True)
         self.show_pass_var = tk.BooleanVar(value=False)
         self.instance = self._load_instance()
+        self.pc_name = self._pc_name()
         self._bg_tasks = queue.Queue()
         self._font_title = ctk.CTkFont(family=FONT, size=19, weight="bold")
         self._font_h1 = ctk.CTkFont(family=FONT, size=16, weight="bold")
@@ -138,6 +140,12 @@ class App(ctk.CTk):
         except Exception:
             pass
         return value
+
+    def _pc_name(self):
+        try:
+            return platform.node() or os.environ.get("COMPUTERNAME") or ""
+        except Exception:
+            return ""
 
     def poll_queue(self):
         try:
@@ -289,6 +297,15 @@ class App(ctk.CTk):
     def _show_login(self, info=None):
         self.clear(self.register, self.portal)
         self.login.pack(fill="both", expand=True)
+        saved = creds.fields()
+        if saved.get("username"):
+            self.user_entry.delete(0, "end")
+            self.user_entry.insert(0, saved["username"])
+        if saved.get("password"):
+            self.pass_entry.delete(0, "end")
+            self.pass_entry.insert(0, saved["password"])
+        if saved.get("username") or saved.get("password"):
+            self.save_login_var.set(True)
         if info:
             self.login_err.configure(text=f"✓ {info}", text_color=OK)
         self.user_entry.focus_set()
@@ -492,7 +509,7 @@ class App(ctk.CTk):
             return
         self.btn_login.configure(state="disabled", text="Entrando…")
         self.login_err.configure(text="", text_color=ERR)
-        self.bg(self.api.login, self._on_login, username, password, self.instance)
+        self.bg(self.api.login, self._on_login, username, password, self.instance, self.pc_name)
 
     def _on_login(self, payload, err):
         self.btn_login.configure(state="normal", text="Entrar")
@@ -500,7 +517,9 @@ class App(ctk.CTk):
             self._login_err(f"⚠ {err}")
             return
         self.api.set_token(payload["token"])
-        creds.save(payload["token"], self.user_entry.get().strip(), remember=self.save_login_var.get())
+        creds.save(payload["token"], self.user_entry.get().strip(),
+                   password=self.pass_entry.get(),
+                   remember=self.save_login_var.get())
         self.user = payload["user"]
         self._show_portal()
 
@@ -722,7 +741,7 @@ class App(ctk.CTk):
             self.conn_err.configure(text="")
             self._hb_on = False
             self.tunnel.stop()
-            self.bg(self.api.tunnel_event, lambda r, e: None, "disconnect", self.instance)
+            self.bg(self.api.tunnel_event, lambda r, e: None, "disconnect", self.instance, self.pc_name)
             return
         com = self.local_port_var.get()
         local_port = self._com_number(com)
@@ -737,7 +756,7 @@ class App(ctk.CTk):
         try:
             self.tunnel.start(self.user, local_port)
             self.conn_err.configure(text="")
-            self.bg(self.api.tunnel_event, self._on_tunnel_event, "connect", self.instance)
+            self.bg(self.api.tunnel_event, self._on_tunnel_event, "connect", self.instance, self.pc_name)
         except Exception as exc:
             self.conn_err.configure(text=f"⚠ {exc}")
 
@@ -754,7 +773,7 @@ class App(ctk.CTk):
     def _heartbeat(self):
         if not self._hb_on or not self.tunnel.is_running():
             return
-        self.bg(self.api.tunnel_event, lambda r, e: None, "connect", self.instance)
+        self.bg(self.api.tunnel_event, lambda r, e: None, "connect", self.instance, self.pc_name)
         self.after(30000, self._heartbeat)
 
     def _on_tunnel_change(self, running):
@@ -783,14 +802,13 @@ class App(ctk.CTk):
         self.tunnel.stop()
         try:
             threading.Thread(
-                target=self.api.tunnel_event, args=("disconnect", self.instance), daemon=True
+                target=self.api.tunnel_event, args=("disconnect", self.instance, self.pc_name), daemon=True
             ).start()
         except Exception:
             pass
-        creds.clear()
+        creds.unremember()
+        self.api.set_token(None)
         self.user = None
-        self.user_entry.delete(0, "end")
-        self.pass_entry.delete(0, "end")
         self._show_login()
 
     def _renew(self):
@@ -805,7 +823,7 @@ class App(ctk.CTk):
         self.tunnel.stop()
         try:
             threading.Thread(
-                target=self.api.tunnel_event, args=("disconnect", self.instance), daemon=True
+                target=self.api.tunnel_event, args=("disconnect", self.instance, self.pc_name), daemon=True
             ).start()
         except Exception:
             pass

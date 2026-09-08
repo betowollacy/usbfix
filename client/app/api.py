@@ -49,10 +49,12 @@ class Api:
     def register(self, username, password, email=""):
         return self._request("POST", "/api/register", {"username": username, "email": email, "password": password})
 
-    def login(self, email, password, instance=None):
+    def login(self, email, password, instance=None, device_name=None):
         body = {"email": email, "password": password}
         if instance:
             body["instance"] = instance
+        if device_name:
+            body["deviceName"] = device_name
         return self._request("POST", "/api/login", body)
 
     def me(self, instance=None):
@@ -73,8 +75,10 @@ class Api:
     def sessions(self):
         return self._request("GET", "/api/sessions")
 
-    def tunnel_event(self, status, instance=None):
+    def tunnel_event(self, status, instance=None, device_name=None):
         body = {"status": status}
         if instance:
             body["instance"] = instance
+        if device_name:
+            body["deviceName"] = device_name
         return self._request("POST", "/api/tunnel-event", body)

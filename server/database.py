@@ -320,6 +320,16 @@ def set_username(identifier, new_username):
     return get_user(new_username)
 
 
+def set_device_name(identifier, device_name):
+    identifier = (identifier or "").strip().lower()
+    rec = get_user(identifier)
+    if not rec:
+        raise ValueError("usuário inválido")
+    with connect() as conn:
+        conn.execute("UPDATE users SET device_name = ? WHERE id = ?", (device_name or "", rec["id"]))
+    return get_user(identifier)
+
+
 def login_user(raw_identifier, password):
     identifier = (raw_identifier or "").strip().lower()
     rec = get_user(identifier)
