@@ -8,7 +8,7 @@ from pathlib import Path
 APP_DIR_NAME = "USB FIX"
 EXE_NAME = "USB-Fix.exe"
 ICON_NAME = "USB-Fix.ico"
-APP_VERSION = "0.5.3"
+APP_VERSION = "0.5.4"
 UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\USB FIX"
 
 MB_OK = 0x0

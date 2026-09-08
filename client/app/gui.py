@@ -415,8 +415,9 @@ class App(ctk.CTk):
     def _build_login(self):
         self.login = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
         self._head_bar(self.login)
-        _, inner = self._center_card(self.login, 326, 430, pad_top=66)
-        self._model_avatar(inner).pack(pady=(0, 14))
+        _, inner = self._center_card(self.login, 326, 430, pad_top=54)
+        self._model_avatar(inner).pack(pady=(0, 6))
+        ctk.CTkLabel(inner, text="USB FIX", text_color=TEXT, font=self._font_h1).pack(pady=(0, 14))
 
         self.login_err = ctk.CTkLabel(inner, text="", text_color=ERR, font=self._font_small,
                                       wraplength=274, justify="left", height=18)
