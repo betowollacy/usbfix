@@ -650,6 +650,15 @@ class App(ctk.CTk):
                                      wraplength=330, justify="left", height=16)
         self.conn_err.pack(fill="x")
 
+        ctk.CTkLabel(inner, text="Clientes conectados", text_color=MUTED, font=self._font_small,
+                     anchor="w", height=16).pack(fill="x", pady=(6, 2))
+        peers_box = self._box(inner)
+        peers_box.pack(fill="x", pady=(0, 4))
+        self.peers_lbl = ctk.CTkLabel(peers_box, text="Nenhum cliente conectado",
+                                      text_color=MUTED, font=self._font_small,
+                                      anchor="w", justify="left", wraplength=300, padx=12, pady=8)
+        self.peers_lbl.pack(fill="x")
+
         foot = ctk.CTkFrame(self.portal, fg_color="transparent", corner_radius=0)
         foot.pack(fill="x", padx=22)
         self.btn_logout = ctk.CTkButton(foot, text="Sair", command=self._logout, width=88, height=34,
@@ -741,6 +750,7 @@ class App(ctk.CTk):
             self.conn_err.configure(text="")
             self._hb_on = False
             self.tunnel.stop()
+            self.peers_lbl.configure(text="Nenhum cliente conectado")
             self.bg(self.api.tunnel_event, lambda r, e: None, "disconnect", self.instance, self.pc_name)
             return
         com = self.local_port_var.get()
@@ -768,12 +778,30 @@ class App(ctk.CTk):
             return
         if not self._hb_on:
             self._hb_on = True
+            self._refresh_peers()
             self._heartbeat()
+
+    def _refresh_peers(self):
+        self.bg(self.api.peers, self._on_peers)
+
+    def _on_peers(self, data, err):
+        if not self._hb_on or not self.tunnel.is_running():
+            self.peers_lbl.configure(text="Nenhum cliente conectado")
+            return
+        peers = []
+        if not err and data:
+            peers = data.get("peers") or []
+        if not peers:
+            self.peers_lbl.configure(text="Aguardando cliente…", text_color=MUTED)
+        else:
+            lines = [f"🖥 {p['host']}:{p['port']}" for p in peers]
+            self.peers_lbl.configure(text="\n".join(lines), text_color=OK)
 
     def _heartbeat(self):
         if not self._hb_on or not self.tunnel.is_running():
             return
         self.bg(self.api.tunnel_event, lambda r, e: None, "connect", self.instance, self.pc_name)
+        self._refresh_peers()
         self.after(30000, self._heartbeat)
 
     def _on_tunnel_change(self, running):

@@ -1,7 +1,9 @@
 import hashlib
 import re
 import secrets
+import socket
 import sqlite3
+import subprocess
 from datetime import datetime, timedelta, timezone
 
 from config import (
@@ -567,6 +569,31 @@ def user_sessions(user_id):
             "SELECT * FROM sessions WHERE key_id = ? ORDER BY started_at DESC LIMIT 30", (user_id,)
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def peers_for_port(port):
+    """Lista conexões TCP estabelecidas na porta pública do túnel (via ss)."""
+    if not port:
+        return []
+    try:
+        proc = subprocess.run(
+            ["ss", "-tnH", "state", "established", f"( sport = :{port} )"],
+            capture_output=True, text=True, timeout=8,
+        )
+    except Exception:
+        return []
+    peers = []
+    for line in proc.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 5:
+            remote = parts[4]
+            try:
+                host, rport = remote.rsplit(":", 1)
+            except ValueError:
+                continue
+            host = host.strip("[]")
+            peers.append({"host": host, "port": int(rport or 0)})
+    return peers
 
 
 # --- pagamentos / plano -----------------------------------------------

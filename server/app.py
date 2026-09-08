@@ -267,6 +267,13 @@ def sessions(rec=Depends(extract_token)):
     return db.user_sessions(rec["id"])
 
 
+@app.get("/api/peers")
+def peers(rec=Depends(extract_token)):
+    if db.effective_status(rec) != "active":
+        raise HTTPException(status_code=403, detail="assinatura suspensa")
+    return {"peers": db.peers_for_port(rec.get("server_port"))}
+
+
 @app.post("/api/tunnel-event")
 def tunnel_event(body: TunnelEventBody, rec=Depends(extract_token)):
     status = db.effective_status(rec)

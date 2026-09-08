@@ -75,6 +75,9 @@ class Api:
     def sessions(self):
         return self._request("GET", "/api/sessions")
 
+    def peers(self):
+        return self._request("GET", "/api/peers")
+
     def tunnel_event(self, status, instance=None, device_name=None):
         body = {"status": status}
         if instance:
