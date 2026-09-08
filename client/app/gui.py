@@ -32,14 +32,20 @@ WARN = "#ffb454"
 FONT = "Segoe UI"
 
 
+def _mix(c1, c2, t):
+    a = [int(c1[i:i + 2], 16) for i in (1, 3, 5)]
+    b = [int(c2[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join(f"{round(a[i] + (b[i] - a[i]) * t):02x}" for i in range(3))
+
+
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("USB FIX")
-        w, h = 380, 560
+        w, h = 380, 600
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         self.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2 - 20}")
-        self.minsize(355, 500)
+        self.minsize(360, 560)
         self.withdraw()
         self.configure(fg_color=BG)
         self.api = Api(self._read_server())
@@ -50,6 +56,7 @@ class App(ctk.CTk):
         self._update_checked = False
         self._updating = False
         self._update_data = None
+        self._pass_entries = []
         self.instance = self._load_instance()
         self._bg_tasks = queue.Queue()
         self._font_title = ctk.CTkFont(family=FONT, size=19, weight="bold")
@@ -61,12 +68,14 @@ class App(ctk.CTk):
         self._font_mono = ctk.CTkFont(family="Consolas", size=12)
 
         self._logo_img = None
+        self._avatar_logo = None
         try:
             raw = base64.b64decode(logo.LOGO_B64)
             img = Image.open(io.BytesIO(raw))
             w, h = img.size
             ch = 26
             self._logo_img = ctk.CTkImage(light_image=img, dark_image=img, size=(int(w * ch / h), ch))
+            self._avatar_logo = ctk.CTkImage(light_image=img, dark_image=img, size=(int(w * 46 / h), 46))
         except Exception:
             self._logo_img = None
         try:
@@ -179,7 +188,7 @@ class App(ctk.CTk):
         return lbl
 
     def _set_update_text(self, text):
-        for w in (self.update_login, self.update_portal):
+        for w in (getattr(self, "update_login", None), self.update_portal):
             if w and w.winfo_exists():
                 w.configure(text=text)
 
@@ -279,7 +288,7 @@ class App(ctk.CTk):
         self.clear(self.register, self.portal)
         self.login.pack(fill="both", expand=True)
         if info:
-            self.login_info.configure(text=info, text_color=OK)
+            self.login_err.configure(text=f"✓ {info}", text_color=OK)
         self.user_entry.focus_set()
 
     def _show_register(self):
@@ -340,113 +349,138 @@ class App(ctk.CTk):
             defaults["show"] = show
         return ctk.CTkEntry(parent, **defaults)
 
+    def _gradient_area(self, parent):
+        area = ctk.CTkFrame(parent, fg_color=BG, corner_radius=0)
+        area.pack(fill="both", expand=True)
+        cv = tk.Canvas(area, highlightthickness=0, bd=0)
+        cv.place(x=0, y=0, relwidth=1, relheight=1)
+
+        def redraw(event=None):
+            cv.delete("grad")
+            w, h = cv.winfo_width(), cv.winfo_height()
+            if w < 2 or h < 2:
+                return
+            steps = max(2, min(h, 256))
+            for i in range(steps):
+                color = _mix(HEADER_BG, BG, i / (steps - 1))
+                cv.create_line(0, i, w, i, fill=color, tags="grad")
+
+        cv.bind("<Configure>", redraw)
+        return area
+
+    def _model_avatar(self, parent):
+        frame = ctk.CTkFrame(parent, fg_color="transparent", width=84, height=84)
+        frame.pack_propagate(False)
+        cv = tk.Canvas(frame, width=84, height=84, bg=PANEL, highlightthickness=0, bd=0)
+        cv.pack(fill="both", expand=True)
+        cv.create_oval(1, 1, 83, 83, outline=ACCENT, width=3)
+        cv.create_oval(6, 6, 78, 78, outline="#332a5c", width=1)
+        if self._avatar_logo:
+            ctk.CTkLabel(frame, text="", image=self._avatar_logo, fg_color="transparent"
+                         ).place(relx=0.5, rely=0.5, anchor="center")
+        return frame
+
+    def _model_input(self, parent, icon, placeholder, show=None):
+        box = ctk.CTkFrame(parent, fg_color=PANEL2, corner_radius=8, border_width=1,
+                           border_color=LINE, height=44)
+        box.pack_propagate(False)
+        box.pack(fill="x", pady=(0, 6))
+        ctk.CTkLabel(box, text=icon, text_color=MUTED, font=("Segoe UI Symbol", 14),
+                     width=48).pack(side="left")
+        ctk.CTkFrame(box, width=1, fg_color=LINE).pack(side="left", fill="y", pady=9)
+        entry = ctk.CTkEntry(box, fg_color="transparent", border_width=0, text_color=TEXT,
+                             placeholder_text=placeholder, placeholder_text_color=MUTED,
+                             font=self._font_body)
+        entry.pack(side="left", fill="both", expand=True, padx=(12, 8), pady=9)
+        if show:
+            entry.configure(show=show)
+        return entry
+
+    def _center_card(self, parent, width, height, pad_top=40):
+        area = self._gradient_area(parent)
+        shadow = ctk.CTkFrame(area, fg_color="#07060b", corner_radius=18,
+                              width=width + 10, height=height + 10)
+        shadow.place(relx=0.5, rely=0.5, x=2, y=5, anchor="center")
+        card = ctk.CTkFrame(area, fg_color=PANEL, corner_radius=16,
+                            border_width=1, border_color="#251f3a",
+                            width=width, height=height)
+        card.pack_propagate(False)
+        card.place(relx=0.5, rely=0.5, anchor="center")
+        inner = ctk.CTkFrame(card, fg_color="transparent", corner_radius=0)
+        inner.pack(fill="both", expand=True, padx=26, pady=(pad_top, 20))
+        return area, inner
+
     def _build_login(self):
         self.login = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
         self._head_bar(self.login)
-        pad = ctk.CTkFrame(self.login, fg_color=BG, corner_radius=0)
-        pad.pack(fill="both", expand=True, padx=28)
-        ctk.CTkFrame(pad, fg_color=BG, corner_radius=0).pack(fill="both", expand=True)
-        wrap = ctk.CTkFrame(pad, fg_color=BG, corner_radius=0)
-        wrap.pack(fill="x", pady=(8, 8))
-        ctk.CTkFrame(pad, fg_color=BG, corner_radius=0).pack(fill="both", expand=True)
-        card = ctk.CTkFrame(wrap, fg_color=PANEL, corner_radius=14, border_width=1, border_color=LINE)
-        card.pack(fill="x")
-        inner = ctk.CTkFrame(card, fg_color=PANEL, corner_radius=0)
-        inner.pack(fill="both", expand=True, padx=24, pady=24)
-
-        ctk.CTkLabel(inner, text="Entrar", text_color=TEXT, font=self._font_h1,
-                     anchor="w").pack(fill="x")
-        ctk.CTkLabel(inner, text="Acesse sua conta para conectar seus dispositivos", text_color=MUTED,
-                     font=self._font_small, anchor="w").pack(fill="x", pady=(2, 16))
+        _, inner = self._center_card(self.login, 326, 430, pad_top=66)
+        self._model_avatar(inner).pack(pady=(0, 14))
 
         self.login_err = ctk.CTkLabel(inner, text="", text_color=ERR, font=self._font_small,
-                                      wraplength=300, justify="left")
-        self.login_err.pack(fill="x", pady=(0, 4))
-        self.login_info = ctk.CTkLabel(inner, text="", text_color=OK, font=self._font_small,
-                                       wraplength=300, justify="left")
-        self.login_info.pack(fill="x", pady=(0, 8))
+                                      wraplength=274, justify="left", height=18)
+        self.login_err.pack(fill="x", pady=(0, 2))
 
-        ctk.CTkLabel(inner, text="Usuário", text_color=MUTED, font=self._font_small, anchor="w").pack(fill="x")
-        self.user_entry = self._entry(inner, font=self._font_mono)
-        self.user_entry.pack(fill="x", pady=(4, 10), ipady=2)
-
-        ctk.CTkLabel(inner, text="Senha", text_color=MUTED, font=self._font_small, anchor="w").pack(fill="x")
-        self.pass_entry = self._entry(inner, show="•", font=self._font_mono)
-        self.pass_entry.pack(fill="x", pady=(4, 12), ipady=2)
+        self.user_entry = self._model_input(inner, "♟", "Usuário")
+        self.pass_entry = self._model_input(inner, "🔒", "Senha", show="•")
         self.pass_entry.bind("<Return>", lambda e: self._do_login())
+        self._pass_entries.append(self.pass_entry)
 
         self.save_login_var = tk.BooleanVar(value=True)
-        self.chk_save = ctk.CTkCheckBox(inner, text="Salvar login neste computador", variable=self.save_login_var,
+        self.show_pass_var = tk.BooleanVar(value=False)
+        opts = ctk.CTkFrame(inner, fg_color="transparent", corner_radius=0)
+        opts.pack(fill="x", pady=(2, 14))
+        self.chk_save = ctk.CTkCheckBox(opts, text="Lembrar de mim", variable=self.save_login_var,
                                         onvalue=True, offvalue=False, fg_color=ACCENT, hover_color=ACCENT_DARK,
                                         checkmark_color="white", border_color=MUTED, text_color=MUTED,
                                         font=self._font_small, corner_radius=6)
-        self.chk_save.pack(fill="x", pady=(0, 14))
+        self.chk_save.pack(side="left")
+        self.chk_show = ctk.CTkCheckBox(opts, text="Mostrar senha", variable=self.show_pass_var,
+                                        onvalue=True, offvalue=False, fg_color=ACCENT, hover_color=ACCENT_DARK,
+                                        checkmark_color="white", border_color=MUTED, text_color=MUTED,
+                                        font=self._font_small, corner_radius=6, command=self._toggle_pass)
+        self.chk_show.pack(side="right")
 
-        self.btn_login = ctk.CTkButton(inner, text="Entrar", command=self._do_login, height=42,
+        self.btn_login = ctk.CTkButton(inner, text="ENTRAR", command=self._do_login, height=50,
                                        fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
                                        font=self._font_btn, corner_radius=10, cursor="hand2")
-        self.btn_login.pack(fill="x", pady=(0, 6))
+        self.btn_login.pack(fill="x", pady=(0, 8))
 
-        link_register = ctk.CTkLabel(inner, text="Não tem conta? Criar conta", text_color=ACCENT,
+        link_register = ctk.CTkLabel(inner, text="Não tem conta?  Criar conta", text_color=ACCENT,
                                      font=self._font_small, cursor="hand2")
-        link_register.pack(pady=(10, 0))
+        link_register.pack()
         link_register.bind("<Button-1>", lambda e: self._show_register())
-
-        self.link_server = ctk.CTkLabel(self.login, text="Servidor", text_color=MUTED,
-                                        font=self._font_small, cursor="hand2")
-        self.link_server.pack(side="bottom", pady=(0, 24))
-        self.link_server.bind("<Button-1>", lambda e: self._open_server_dialog())
-        self.update_login = self._add_update_label(self.login)
-        ctk.CTkLabel(self.login, text=f"USB FIX v{VERSION}", text_color="#5a5670",
-                     font=self._font_small).pack(side="bottom", pady=(0, 8))
 
     def _build_register(self):
         self.register = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
         self._head_bar(self.register)
-        pad = ctk.CTkFrame(self.register, fg_color=BG, corner_radius=0)
-        pad.pack(fill="both", expand=True, padx=28)
-        ctk.CTkFrame(pad, fg_color=BG, corner_radius=0).pack(fill="both", expand=True)
-        wrap = ctk.CTkFrame(pad, fg_color=BG, corner_radius=0)
-        wrap.pack(fill="x", pady=(8, 8))
-        ctk.CTkFrame(pad, fg_color=BG, corner_radius=0).pack(fill="both", expand=True)
-        card = ctk.CTkFrame(wrap, fg_color=PANEL, corner_radius=14, border_width=1, border_color=LINE)
-        card.pack(fill="x")
-        inner = ctk.CTkFrame(card, fg_color=PANEL, corner_radius=0)
-        inner.pack(fill="both", expand=True, padx=24, pady=22)
-
-        ctk.CTkLabel(inner, text="Criar conta", text_color=TEXT, font=self._font_h1,
-                     anchor="w").pack(fill="x")
-        ctk.CTkLabel(inner, text="A conta fica ativa após a liberação do vendedor", text_color=MUTED,
-                     font=self._font_small, anchor="w").pack(fill="x", pady=(2, 16))
+        _, inner = self._center_card(self.register, 326, 390, pad_top=44)
 
         self.reg_err = ctk.CTkLabel(inner, text="", text_color=ERR, font=self._font_small,
-                                    wraplength=300, justify="left")
-        self.reg_err.pack(fill="x", pady=(0, 4))
+                                    wraplength=274, justify="left", height=18)
+        self.reg_err.pack(fill="x", pady=(0, 2))
 
-        ctk.CTkLabel(inner, text="Usuário", text_color=MUTED, font=self._font_small, anchor="w").pack(fill="x")
-        self.reg_user = self._entry(inner, font=self._font_mono)
-        self.reg_user.pack(fill="x", pady=(4, 8), ipady=2)
-
-        ctk.CTkLabel(inner, text="E-mail", text_color=MUTED, font=self._font_small, anchor="w").pack(fill="x")
-        self.reg_mail = self._entry(inner, font=self._font_mono)
-        self.reg_mail.pack(fill="x", pady=(4, 8), ipady=2)
-
-        ctk.CTkLabel(inner, text="Senha", text_color=MUTED, font=self._font_small, anchor="w").pack(fill="x")
-        self.reg_pass = self._entry(inner, show="•", font=self._font_mono)
-        self.reg_pass.pack(fill="x", pady=(4, 12), ipady=2)
+        self.reg_user = self._model_input(inner, "♟", "Usuário")
+        self.reg_mail = self._model_input(inner, "♞", "E-mail")
+        self.reg_pass = self._model_input(inner, "🔒", "Senha", show="•")
         self.reg_pass.bind("<Return>", lambda e: self._do_register())
+        self._pass_entries.append(self.reg_pass)
 
-        self.btn_register = ctk.CTkButton(inner, text="Criar conta", command=self._do_register, height=42,
+        self.show_pass_var = tk.BooleanVar(value=False)
+        self.chk_show = ctk.CTkCheckBox(inner, text="Mostrar senha", variable=self.show_pass_var,
+                                        onvalue=True, offvalue=False, fg_color=ACCENT, hover_color=ACCENT_DARK,
+                                        checkmark_color="white", border_color=MUTED, text_color=MUTED,
+                                        font=self._font_small, corner_radius=6, command=self._toggle_pass)
+        self.chk_show.pack(fill="x", pady=(0, 14))
+
+        self.btn_register = ctk.CTkButton(inner, text="CRIAR CONTA", command=self._do_register, height=50,
                                           fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
                                           font=self._font_btn, corner_radius=10, cursor="hand2")
-        self.btn_register.pack(fill="x", pady=(2, 6))
+        self.btn_register.pack(fill="x", pady=(0, 8))
 
         back = ctk.CTkLabel(inner, text="Já tenho conta — voltar ao login", text_color=ACCENT,
                             font=self._font_small, cursor="hand2")
-        back.pack(pady=(10, 0))
+        back.pack()
         back.bind("<Button-1>", lambda e: self._show_login())
-        ctk.CTkLabel(self.register, text=f"USB FIX v{VERSION}", text_color="#5a5670",
-                     font=self._font_small).pack(side="bottom", pady=(0, 8))
 
     def _do_login(self):
         username = self.user_entry.get().strip()
@@ -455,8 +489,7 @@ class App(ctk.CTk):
             self._login_err("Digite usuário e senha.")
             return
         self.btn_login.configure(state="disabled", text="Entrando…")
-        self.login_err.configure(text="")
-        self.login_info.configure(text="")
+        self.login_err.configure(text="", text_color=ERR)
         self.bg(self.api.login, self._on_login, username, password, self.instance)
 
     def _on_login(self, payload, err):
@@ -471,6 +504,11 @@ class App(ctk.CTk):
 
     def _login_err(self, msg):
         self.login_err.configure(text=f"⚠ {msg}")
+
+    def _toggle_pass(self):
+        show = self.show_pass_var.get()
+        for entry in getattr(self, "_pass_entries", []):
+            entry.configure(show="" if show else "•")
 
     def _do_register(self):
         username = self.reg_user.get().strip()
