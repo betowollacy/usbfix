@@ -491,7 +491,7 @@ def comprar_page():
 
 @app.get("/admin", include_in_schema=False)
 def admin_page():
-    return FileResponse(SITE_DIR / "admin.html")
+    return FileResponse(SITE_DIR / "admin.html", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/plan")
