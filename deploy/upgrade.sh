@@ -40,10 +40,16 @@ echo "==> Atualizando dependências da API"
 /opt/tunnel/venv/bin/pip install -q --upgrade pip
 /opt/tunnel/venv/bin/pip install -q -r /opt/tunnel/server/requirements.txt
 
-echo "==> Atualizando arquivos de serviço systemd"
+echo "==> Copiando arquivos de serviço systemd"
 cp "$SRC_DIR/deploy/systemd/frps.service" /etc/systemd/system/
 cp "$SRC_DIR/deploy/systemd/tunnel-api.service" /etc/systemd/system/
 systemctl daemon-reload
+
+echo "==> Salvando scripts de deploy em /opt/tunnel/deploy"
+mkdir -p /opt/tunnel/deploy/systemd
+cp "$SRC_DIR/deploy/"*.sh /opt/tunnel/deploy/
+cp "$SRC_DIR/deploy/systemd/." /opt/tunnel/deploy/systemd/
+chmod +x /opt/tunnel/deploy/*.sh
 
 echo "==> Reiniciando serviços"
 systemctl restart frps tunnel-api

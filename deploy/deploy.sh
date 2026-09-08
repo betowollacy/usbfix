@@ -69,6 +69,12 @@ chmod 600 /etc/tunnel/env
 echo "==> Instalando serviços systemd..."
 cp "$PROJECT_DIR/deploy/systemd/frps.service" /etc/systemd/system/
 cp "$PROJECT_DIR/deploy/systemd/tunnel-api.service" /etc/systemd/system/
+
+echo "==> Copiando scripts de deploy para a VPS..."
+mkdir -p /opt/tunnel/deploy/systemd
+cp "$PROJECT_DIR/deploy/"*.sh /opt/tunnel/deploy/
+cp "$PROJECT_DIR/deploy/systemd/." /opt/tunnel/deploy/systemd/
+chmod +x /opt/tunnel/deploy/*.sh
 chown -R tunnel:tunnel /opt/tunnel /etc/tunnel
 systemctl daemon-reload
 systemctl enable --now frps tunnel-api
