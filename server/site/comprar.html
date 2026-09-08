@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>USB FIX — Planos e compra</title>
+<link rel="icon" type="image/png" href="logo.png">
+<style>
+  :root{
+    --bg:#0b1020; --bg2:#111a33; --card:#151f3d; --line:#243053;
+    --txt:#e7ecf7; --muted:#9aa7c9; --accent:#4f7cff; --accent2:#7c3aed;
+    --ok:#2ecc71; --warn:#f0b429; --err:#e74c3c;
+    --orange:#ff8a3d; --orange2:#ff5e2b;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{background:radial-gradient(1200px 500px at 80% -10%, var(--bg2), var(--bg)) fixed; color:var(--txt);
+       font-family:Segoe UI, system-ui, -apple-system, Roboto, Arial, sans-serif; line-height:1.55; min-height:100%}
+  a{color:var(--accent); text-decoration:none}
+  a:hover{color:var(--orange)}
+  .wrap{max-width:1080px; margin:0 auto; padding:0 20px; width:100%}
+  header{background:rgba(11,16,32,.85); backdrop-filter:blur(8px); border-bottom:1px solid var(--line)}
+  nav{display:flex; align-items:center; gap:14px; padding:12px 0}
+  .brand{font-weight:700; letter-spacing:.4px; display:flex; align-items:center; gap:10px}
+  .brand img{width:30px; height:30px; object-fit:contain; border-radius:8px; box-shadow:0 0 0 1px rgba(255,255,255,.12)}
+  nav .spacer{flex:1}
+  nav button, .btn{background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border:0; border-radius:10px;
+       padding:9px 16px; font-weight:600; cursor:pointer; font-size:14px; font-family:inherit}
+  nav button:hover, .btn:hover{filter:brightness(1.1)}
+  .assin, .btn.assin, nav button.assin{background:linear-gradient(135deg,var(--orange),var(--orange2)) !important;
+       box-shadow:0 6px 20px rgba(255,122,26,.35)}
+  .btn.ghost{background:transparent; border:1px solid var(--line); color:var(--txt)}
+  main{padding:30px 0 20px}
+  h1{font-size:26px; margin-bottom:6px}
+  .lead{color:var(--muted); margin-bottom:22px}
+  h2{font-size:17px; margin:0 0 12px}
+  .grid{display:grid; gap:16px}
+  .grid.plans{grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); align-items:stretch}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px}
+  .plan{display:flex; flex-direction:column}
+  .plan h3{font-size:17px}
+  .price{font-size:32px; font-weight:800; background:linear-gradient(135deg,var(--orange),var(--orange2));
+       -webkit-background-clip:text; background-clip:text; color:transparent; margin:6px 0}
+  .price small{font-size:13px; color:var(--muted); font-weight:400}
+  .plan ul{list-style:none; margin:8px 0 14px}
+  .plan li{color:var(--muted); font-size:14px; margin:6px 0}
+  .plan li::before{content:"•"; color:var(--orange); font-weight:900; margin-right:8px}
+  .plan .btn{margin-top:auto}
+  .cols{display:grid; grid-template-columns:1.2fr .8fr; gap:20px; align-items:start}
+  @media(max-width:820px){ .cols{grid-template-columns:1fr} }
+  .form{display:flex; flex-direction:column; gap:12px}
+  .form label{font-size:13px; color:var(--muted)}
+  input, select{background:var(--bg); border:1px solid var(--line); border-radius:10px; color:var(--txt);
+       padding:11px 13px; font-size:15px; width:100%}
+  input:focus, select:focus{outline:2px solid var(--orange)}
+  select{appearance:auto; cursor:pointer}
+  .statusrow{display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:8px;
+       font-size:14px; color:var(--muted); border-bottom:1px dashed var(--line); padding-bottom:8px}
+  .statusrow b{color:var(--txt); font-weight:600}
+  .pill{border-radius:999px; padding:3px 12px; font-size:12px; font-weight:700}
+  .pill.active{background:rgba(46,204,113,.15); color:var(--ok)}
+  .pill.pending{background:rgba(240,180,41,.15); color:var(--warn)}
+  .pill.expired, .pill.blocked{background:rgba(231,76,60,.15); color:var(--err)}
+  .msg{border-radius:10px; padding:11px 13px; font-size:14px; display:none}
+  .msg.show{display:block}
+  .msg.ok{background:rgba(46,204,113,.12); color:var(--ok); border:1px solid rgba(46,204,113,.4)}
+  .msg.err{background:rgba(231,76,60,.12); color:var(--err); border:1px solid rgba(231,76,60,.4)}
+  .signin{text-align:center; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:34px 20px; margin:40px auto; max-width:420px}
+  .signin h2{margin-bottom:6px}
+  .signin p{color:var(--muted); font-size:14px; margin-bottom:18px}
+  .signin .btns{display:flex; gap:12px; justify-content:center}
+  .hidden{display:none}
+  .qr{text-align:center; padding:6px 0}
+  .qr img{width:200px; height:200px; border-radius:12px; background:#fff; padding:8px}
+  .qrcode-note{color:var(--muted); font-size:14px; margin-top:10px}
+  .pixcode{background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px;
+       font-size:12px; word-break:break-all; color:var(--muted); margin-top:10px; max-height:96px; overflow:auto;
+       white-space:pre-wrap; font-family:Consolas, monospace}
+  .copybtn{margin-top:12px}
+  footer{border-top:1px solid rgba(255,138,61,.35); margin-top:30px; padding:14px 0; color:var(--muted); font-size:12.5px; text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <nav>
+      <div class="brand"><a href="/" style="display:flex; align-items:center; gap:10px; color:var(--txt)"><img src="logo.png" alt="USB FIX">USB FIX</a></div>
+      <span class="spacer"></span>
+      <a class="btn ghost" href="/cadastro">Minha conta</a>
+      <a class="btn ghost hidden" id="btnSair" href="#" onclick="logout(); return false;">Sair</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <h1>Planos e compra</h1>
+    <p class="lead">Escolha o plano, gere o Pix e a liberação é automática após a confirmação.</p>
+
+    <div class="grid plans" id="plansGrid"></div>
+
+    <div style="height:22px"></div>
+
+    <div class="hidden" id="signInBox">
+      <div class="signin">
+        <h2>Entre para assinar</h2>
+        <p>Você precisa estar com a conta logada para gerar o pagamento e baixar o app.</p>
+        <div class="btns">
+          <a class="btn assin" href="/cadastro">Entrar ou criar conta</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="cols hidden" id="acctBox">
+      <div class="card">
+        <h2>Minha conta</h2>
+        <div class="statusrow"><span>Usuário</span><b id="meUser"></b></div>
+        <div class="statusrow"><span>Status</span><span id="meStatus"></span></div>
+        <div class="statusrow"><span>Endereço</span><b id="meSub"></b></div>
+        <div class="statusrow"><span>Válido até</span><b id="meValid"></b></div>
+        <div class="statusrow"><span>Porta</span><b id="mePort"></b></div>
+      </div>
+
+      <div class="card" id="checkoutCard">
+        <h2>Pagamento via Pix</h2>
+        <form class="form" id="checkoutForm" onsubmit="return doCheckout(event)">
+          <label>Plano</label>
+          <select id="coPlan"></select>
+          <label>Nome completo</label><input id="coName" required>
+          <label>E-mail (opcional)</label><input id="coEmail" type="email">
+          <label>CPF (somente números)</label><input id="coCpf" inputmode="numeric" required>
+          <button class="btn assin" type="submit" id="coBtn">Gerar Pix de R$ <span id="coBtnPrice">—</span></button>
+        </form>
+        <div id="coMsg" class="msg"></div>
+      </div>
+
+      <div class="card hidden" id="payCard">
+        <h2>Pagamento via Pix</h2>
+        <div class="qr">
+          <img id="qrImg" alt="QR Code Pix">
+          <p class="qrcode-note">Pague com o app do seu banco. A liberação acontece em segundos.</p>
+          <button class="btn ghost copybtn" id="copyBtn" onclick="copyPayload()">Copiar código copia-e-cola</button>
+          <div class="pixcode" id="qrText"></div>
+        </div>
+        <div id="payMsg" class="msg"></div>
+      </div>
+    </div>
+
+    <div class="card hidden" id="dlKeyBox" style="margin-top:20px">
+      <h2 style="margin:0 0 6px">Key de ativação do USB Redirector</h2>
+      <p style="color:var(--muted); font-size:14px; margin-bottom:10px">Use esta key na ativação do USB Redirector.</p>
+      <div class="pixcode" id="dlKey"></div>
+      <button class="btn ghost copybtn" id="dlKeyBtn" onclick="copyKey()">Copiar key</button>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">USB FIX — acesso remoto USB por assinatura.</div>
+</footer>
+
+<script>
+const $ = s => document.querySelector(s);
+let token = null;
+let session = null;
+let plans = [];
+let pollTimer = null;
+
+async function api(method, path, body){
+  const headers = {'Content-Type':'application/json'};
+  if(token) headers['Authorization'] = 'Bearer ' + token;
+  const resp = await fetch('/api' + path, {method, headers, body: body ? JSON.stringify(body) : undefined});
+  const text = await resp.text();
+  const data = text ? JSON.parse(text) : {};
+  if(!resp.ok) throw new Error(data.detail || ('Erro ' + resp.status));
+  return data;
+}
+function msg(el, text, kind){
+  const m = $(el);
+  m.textContent = text;
+  m.className = 'msg show ' + (kind||'err');
+}
+function statusPill(s){
+  const map = {active:['active','Ativa'], pending:['pending','Aguardando liberação'], expired:['expired','Expirada'], blocked:['blocked','Bloqueada']};
+  const [cls,label] = map[s] || ['pending', s];
+  return '<span class="pill '+cls+'">'+label+'</span>';
+}
+
+async function renderPlans(){
+  try{
+    const data = await api('GET','/plans');
+    plans = (data.plans && data.plans.length) ? data.plans : plans;
+  }catch(_){}
+  if(!plans.length){
+    plans = [
+      {id:'30d',  name:'30 dias', price:25,  days:30},
+      {id:'90d',  name:'90 dias', price:70,  days:90},
+      {id:'365d', name:'Anual',   price:150, days:365},
+    ];
+  }
+  const feats = [
+    ['1 dispositivo USB simultâneo','Subdomínio exclusivo','Porta dedicada','App de conexão'],
+    ['1 dispositivo USB simultâneo','Subdomínio exclusivo','Porta dedicada','App de conexão'],
+    ['1 dispositivo USB simultâneo','Subdomínio exclusivo','Porta dedicada','App de conexão','Suporte prioritário'],
+  ];
+  const grid = $('#plansGrid');
+  grid.innerHTML = '';
+  plans.forEach((p, i)=>{
+    const card = document.createElement('div');
+    card.className = 'card plan';
+    card.innerHTML =
+      '<h3>'+p.name+'</h3>'+
+      '<div class="price">R$ '+p.price.toFixed(2).replace('.', ',')+' <small>/ '+p.days+' dias</small></div>'+
+      '<ul>'+feats[i % feats.length].map(f=>'<li>'+f+'</li>').join('')+'</ul>'+
+      '<button class="btn assin" data-plan="'+p.id+'" onclick="pickPlan(this)">Assinar agora</button>';
+    grid.appendChild(card);
+  });
+  const sel = $('#coPlan');
+  if(sel){
+    sel.innerHTML = plans.map(p=>'<option value="'+p.id+'">'+p.name+' — R$ '+p.price.toFixed(2).replace('.', ',')+'</option>').join('');
+    sel.onchange = updateCoPrice;
+  }
+  updateCoPrice();
+}
+
+function updateCoPrice(){
+  const sel = $('#coPlan');
+  if(!sel) return;
+  const p = plans.find(x=>x.id === sel.value) || plans[0];
+  if(p && p.price > 0){ $('#coBtnPrice').textContent = p.price.toFixed(2).replace('.', ','); }
+}
+
+function pickPlan(el){
+  const pid = el.getAttribute('data-plan');
+  if(!token){
+    try{ sessionStorage.setItem('tunnel.plan', pid); }catch(_){}
+    location.href = '/cadastro';
+    return;
+  }
+  const sel = $('#coPlan');
+  if(sel){ sel.value = pid; updateCoPrice(); }
+  $('#checkoutCard').scrollIntoView({behavior:'smooth'});
+}
+
+function renderAcct(){
+  $('#meUser').textContent = session.username || session.email;
+  $('#meStatus').innerHTML = statusPill(session.status);
+  $('#meSub').textContent = session.endpoint || '—';
+  $('#mePort').textContent = session.port || '—';
+  $('#meValid').textContent = session.validUntil ? new Date(session.validUntil).toLocaleDateString('pt-BR') : '—';
+}
+
+async function doCheckout(e){
+  e.preventDefault();
+  try{
+    const sel = $('#coPlan');
+    const planId = (sel && sel.value) || (plans[0] && plans[0].id) || '30d';
+    const plan = plans.find(p=>p.id===planId) || plans[0] || {price:0};
+    if(plan.price > 0){ $('#coBtnPrice').textContent = plan.price.toFixed(2).replace('.', ','); }
+    const data = await api('POST','/checkout',{
+      name:$('#coName').value,
+      email:$('#coEmail').value || null,
+      cpf:$('#coCpf').value.replace(/\D/g,''),
+      planId: planId,
+    });
+    $('#checkoutCard').classList.add('hidden');
+    $('#payCard').classList.remove('hidden');
+    $('#qrImg').src = 'data:image/png;base64,' + data.qrCode.encodedImage;
+    $('#qrText').textContent = data.qrCode.payload || '';
+    msg('#payMsg', 'Aguardando pagamento...', 'ok');
+    clearInterval(pollTimer);
+    pollTimer = setInterval(() => checkPayment(data.paymentId), 4000);
+  }catch(err){
+    msg('#coMsg', err.message, 'err');
+  }
+  return false;
+}
+
+async function checkPayment(paymentId){
+  try{
+    const data = await api('GET','/payment/'+paymentId);
+    if(data.paid){
+      clearInterval(pollTimer);
+      msg('#payMsg', 'Pagamento confirmado! Sua licença foi liberada. Abra o aplicativo e faça login.', 'ok');
+      session = await api('GET','/me');
+      try{ localStorage.setItem('tunnel.user', JSON.stringify(session)); }catch(_){}
+      renderAcct();
+    }else if(data.status==='paid'){
+      clearInterval(pollTimer);
+      msg('#payMsg', 'Pagamento confirmado! Licença liberada.', 'ok');
+    }
+  }catch(_){}
+}
+
+async function loadDownloadsKey(){
+  try{
+    const data = await api('GET','/downloads');
+    const box = $('#dlKeyBox');
+    if(data.activationKey){
+      box.classList.remove('hidden');
+      $('#dlKey').textContent = data.activationKey;
+    }else{
+      box.classList.add('hidden');
+    }
+  }catch(_){}
+}
+
+function copyPayload(){
+  const code = $('#qrText').textContent;
+  if(!code) return;
+  copyText(code, $('#copyBtn'), 'Copiar código copia-e-cola', 'Copiado!');
+}
+function copyKey(){
+  const code = $('#dlKey').textContent;
+  if(!code) return;
+  copyText(code, $('#dlKeyBtn'), 'Copiar key', 'Copiada!');
+}
+function copyText(text, btn, normal, done){
+  const finish = () => { btn.textContent = done; setTimeout(()=> btn.textContent = normal, 2000); };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(finish).catch(finish);
+  }else{
+    const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); ta.remove(); finish();
+  }
+}
+
+function applySavedPlan(){
+  let pid = null;
+  try{ pid = sessionStorage.getItem('tunnel.plan') || null; }catch(_){}
+  if(!pid) return;
+  try{ sessionStorage.removeItem('tunnel.plan'); }catch(_){}
+  const sel = $('#coPlan');
+  if(sel && plans.some(p=>p.id === pid)){ sel.value = pid; updateCoPrice(); }
+  setTimeout(()=> $('#checkoutCard').scrollIntoView({behavior:'smooth'}), 150);
+}
+
+function logout(){
+  token = null; session = null; clearInterval(pollTimer);
+  try{ localStorage.removeItem('tunnel.token'); localStorage.removeItem('tunnel.user'); }catch(_){}
+  location.href = '/';
+}
+
+(async function boot(){
+  await renderPlans();
+  let logged = false;
+  try{
+    const saved = localStorage.getItem('tunnel.token');
+    if(saved){
+      token = saved;
+      session = await api('GET','/me');
+      logged = true;
+    }
+  }catch(_){
+    token = null;
+    try{ localStorage.removeItem('tunnel.token'); }catch(_){}
+  }
+  if(!logged){
+    $('#signInBox').classList.remove('hidden');
+  }else{
+    $('#btnSair').classList.remove('hidden');
+    $('#acctBox').classList.remove('hidden');
+    session = session || JSON.parse(localStorage.getItem('tunnel.user') || 'null');
+    renderAcct();
+    await loadDownloadsKey();
+    applySavedPlan();
+  }
+})();
+</script>
+</body>
+</html>

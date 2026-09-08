@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>USB FIX — Entrar / Criar conta</title>
+<link rel="icon" type="image/png" href="logo.png">
+<style>
+  :root{
+    --bg:#0b1020; --bg2:#111a33; --card:#151f3d; --line:#243053;
+    --txt:#e7ecf7; --muted:#9aa7c9; --accent:#4f7cff; --accent2:#7c3aed;
+    --ok:#2ecc71; --warn:#f0b429; --err:#e74c3c;
+    --orange:#ff8a3d; --orange2:#ff5e2b;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%}
+  body{background:radial-gradient(1200px 500px at 80% -10%, var(--bg2), var(--bg)) fixed; color:var(--txt);
+       font-family:Segoe UI, system-ui, -apple-system, Roboto, Arial, sans-serif; line-height:1.55;
+       display:flex; flex-direction:column; min-height:100%}
+  a{color:var(--accent); text-decoration:none}
+  a:hover{color:var(--orange)}
+  .wrap{max-width:1080px; margin:0 auto; padding:0 20px; width:100%}
+  header{background:rgba(11,16,32,.85); backdrop-filter:blur(8px); border-bottom:1px solid var(--line)}
+  nav{display:flex; align-items:center; gap:14px; padding:12px 0}
+  .brand{font-weight:700; letter-spacing:.4px; display:flex; align-items:center; gap:10px}
+  .brand img{width:30px; height:30px; object-fit:contain; border-radius:8px; box-shadow:0 0 0 1px rgba(255,255,255,.12)}
+  nav .spacer{flex:1}
+  nav button, .btn{background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border:0; border-radius:10px;
+       padding:9px 16px; font-weight:600; cursor:pointer; font-size:14px; font-family:inherit}
+  nav button:hover, .btn:hover{filter:brightness(1.1)}
+  .assin, .btn.assin, nav button.assin{background:linear-gradient(135deg,var(--orange),var(--orange2)) !important;
+       box-shadow:0 6px 20px rgba(255,122,26,.35)}
+  .btn.ghost{background:transparent; border:1px solid var(--line); color:var(--txt)}
+  main{flex:1; display:flex; align-items:center; padding:20px 0}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:18px; padding:26px; max-width:400px; margin:0 auto; width:100%}
+  .card .logo{width:64px; height:64px; object-fit:contain; border-radius:16px; margin:0 auto 14px;
+       box-shadow:0 0 0 1px rgba(255,255,255,.14), 0 10px 30px rgba(0,0,0,.45); display:block}
+  .card h1{font-size:22px; text-align:center; margin-bottom:4px}
+  .card .sub{color:var(--muted); font-size:13.5px; text-align:center; margin-bottom:18px}
+  .tabs{display:flex; gap:8px; margin-bottom:18px}
+  .tabs button{flex:1; background:transparent; border:1px solid var(--line); border-radius:10px;
+       color:var(--muted); padding:10px; cursor:pointer; font-weight:600; font-family:inherit; font-size:14px}
+  .tabs button.on{background:linear-gradient(135deg,var(--orange),var(--orange2)); border-color:transparent; color:#fff}
+  .form{display:flex; flex-direction:column; gap:12px}
+  .form.hidden{display:none}
+  .form label{font-size:13px; color:var(--muted)}
+  input{background:var(--bg); border:1px solid var(--line); border-radius:10px; color:var(--txt);
+       padding:11px 13px; font-size:15px; width:100%}
+  input:focus{outline:2px solid var(--orange)}
+  .msg{border-radius:10px; padding:11px 13px; font-size:14px; display:none}
+  .msg.show{display:block}
+  .msg.ok{background:rgba(46,204,113,.12); color:var(--ok); border:1px solid rgba(46,204,113,.4)}
+  .msg.err{background:rgba(231,76,60,.12); color:var(--err); border:1px solid rgba(231,76,60,.4)}
+  .mini{font-size:12.5px; text-align:center; color:var(--muted); margin-top:14px}
+  footer{border-top:1px solid rgba(255,138,61,.35); padding:14px 0; color:var(--muted); font-size:12.5px; text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <nav>
+      <div class="brand"><a href="/" style="display:flex; align-items:center; gap:10px; color:var(--txt)"><img src="logo.png" alt="USB FIX">USB FIX</a></div>
+      <span class="spacer"></span>
+      <a class="assin btn" href="/comprar">Assinar</a>
+      <a class="btn ghost" href="/">Voltar</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <img class="logo" src="logo.png" alt="USB FIX">
+    <h1>Área do cliente</h1>
+    <p class="sub">Entre na sua conta ou crie um cadastro para assinar.</p>
+    <div class="tabs">
+      <button id="tLogin" class="on" onclick="switchTab('login')">Entrar</button>
+      <button id="tReg" onclick="switchTab('reg')">Criar conta</button>
+    </div>
+    <form class="form" id="fLogin" onsubmit="return doLogin(event)">
+      <label>Usuário ou e-mail</label><input id="lUser" type="text" autocomplete="username" placeholder="seu usuário" required>
+      <label>Senha</label><input id="lPass" type="password" autocomplete="current-password" required>
+      <button class="btn" type="submit">Entrar</button>
+      <a href="#" class="mini" onclick="switchTab('reset'); return false;">Esqueci a senha</a>
+      <div id="loginMsg" class="msg"></div>
+    </form>
+    <form class="form hidden" id="fReg" onsubmit="return doReg(event)">
+      <label>Usuário</label><input id="rUser" type="text" autocomplete="username" placeholder="3 a 32 caracteres" required>
+      <label>E-mail</label><input id="rEmail" type="email" autocomplete="email" placeholder="seu@email.com" required>
+      <label>Senha (mínimo 6 caracteres)</label><input id="rPass" type="password" autocomplete="new-password" required>
+      <button class="btn assin" type="submit">Criar conta e assinar</button>
+      <div id="regMsg" class="msg"></div>
+    </form>
+    <form class="form hidden" id="fReset" onsubmit="return doReset(event)">
+      <p class="mini" style="text-align:left; margin-top:0">Cole aqui o link/token recebido e crie uma nova senha.</p>
+      <label>Token de recuperação</label><input id="rTok" required>
+      <label>Nova senha (mínimo 6 caracteres)</label><input id="rNewPass" type="password" autocomplete="new-password" required>
+      <button class="btn" type="submit">Definir nova senha</button>
+      <div id="resetMsg" class="msg"></div>
+    </form>
+    <p class="mini">Já assinou? <a href="/comprar">Ver planos e renovar</a> — com a conta logada você também baixa o app por lá.</p>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">USB FIX — acesso remoto USB por assinatura.</div>
+</footer>
+
+<script>
+const $ = s => document.querySelector(s);
+let token = null;
+
+async function api(method, path, body){
+  const headers = {'Content-Type':'application/json'};
+  if(token) headers['Authorization'] = 'Bearer ' + token;
+  const resp = await fetch('/api' + path, {method, headers, body: body ? JSON.stringify(body) : undefined});
+  const text = await resp.text();
+  const data = text ? JSON.parse(text) : {};
+  if(!resp.ok) throw new Error(data.detail || ('Erro ' + resp.status));
+  return data;
+}
+
+function msg(el, text, kind){
+  const m = $(el);
+  m.textContent = text;
+  m.className = 'msg show ' + (kind||'err');
+}
+function switchTab(which){
+  $('#tLogin').classList.toggle('on', which==='login');
+  $('#tReg').classList.toggle('on', which==='reg');
+  $('#fLogin').classList.toggle('hidden', which!=='login');
+  $('#fReg').classList.toggle('hidden', which!=='reg');
+  $('#fReset').classList.add('hidden');
+  $('#loginMsg').className = 'msg';
+  $('#regMsg').className = 'msg';
+}
+
+function storeSession(user){
+  try{ localStorage.setItem('tunnel.token', token); localStorage.setItem('tunnel.user', JSON.stringify(user)); }catch(_){}
+}
+function afterLogin(user){
+  storeSession(user);
+  location.href = '/comprar';
+}
+
+async function doLogin(e){
+  e.preventDefault();
+  try{
+    const data = await api('POST','/login',{username:$('#lUser').value.trim().toLowerCase(), password:$('#lPass').value});
+    token = data.token;
+    location.href = '/comprar';
+  }catch(err){ msg('#loginMsg', err.message, 'err'); }
+  return false;
+}
+
+async function doReg(e){
+  e.preventDefault();
+  try{
+    const user = $('#rUser').value.trim().toLowerCase();
+    const email = $('#rEmail').value.trim().toLowerCase();
+    const pass = $('#rPass').value;
+    await api('POST','/register',{username:user, email:email, password:pass});
+    const data = await api('POST','/login',{username:user, password:pass});
+    token = data.token;
+    storeSession(data.user);
+    location.href = '/comprar';
+  }catch(err){ msg('#regMsg', err.message, 'err'); }
+  return false;
+}
+
+async function doReset(e){
+  e.preventDefault();
+  try{
+    const data = await api('POST','/reset-password',{token:$('#rTok').value.trim(), new:$('#rNewPass').value});
+    $('#rTok').value=''; $('#rNewPass').value='';
+    msg('#resetMsg', data.message, 'ok');
+    switchTab('login');
+  }catch(err){ msg('#resetMsg', err.message, 'err'); }
+  return false;
+}
+
+(async function boot(){
+  try{
+    const saved = localStorage.getItem('tunnel.token');
+    if(saved){ token = saved; await api('GET','/me'); location.href = '/comprar'; }
+  }catch(_){
+    token = null;
+    try{ localStorage.removeItem('tunnel.token'); }catch(_){}
+  }
+  const m = (location.hash||'').match(/^#reset=(.+)$/);
+  if(m){ switchTab('reset'); $('#rTok').value = decodeURIComponent(m[1]); location.hash = ''; }
+})();
+</script>
+</body>
+</html>

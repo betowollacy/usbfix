@@ -477,6 +477,16 @@ def index():
     return FileResponse(SITE_DIR / "index.html")
 
 
+@app.get("/cadastro", include_in_schema=False)
+def cadastro_page():
+    return FileResponse(SITE_DIR / "cadastro.html")
+
+
+@app.get("/comprar", include_in_schema=False)
+def comprar_page():
+    return FileResponse(SITE_DIR / "comprar.html")
+
+
 @app.get("/admin", include_in_schema=False)
 def admin_page():
     return FileResponse(SITE_DIR / "admin.html")
