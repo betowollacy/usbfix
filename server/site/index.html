@@ -296,8 +296,11 @@ function msg(el, text, kind){
 function scrollTo(sel){ document.querySelector(sel).scrollIntoView({behavior:'smooth'}); }
 
 function assinar(){
-  if(token){ showAcct(); scrollTo('#area'); }
-  else{ openAuth('reg'); }
+  if(token){ showAcct(); const box = $('#extendBox'); if(box) setTimeout(()=>box.scrollIntoView({behavior:'smooth'}), 100); }
+  else{
+    scrollTo('#preco');
+    openAuth('reg');
+  }
 }
 
 function openAuth(tab){
@@ -585,6 +588,7 @@ function assinarPlan(el){
   const pid = el.getAttribute('data-plan');
   if(!token){
     try{ sessionStorage.setItem('tunnel.plan', pid); }catch(_){}
+    scrollTo('#preco');
     openAuth('login');
     return false;
   }
