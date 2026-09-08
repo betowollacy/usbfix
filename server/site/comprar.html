@@ -45,6 +45,7 @@
   .plan li{color:var(--muted); font-size:14px; margin:6px 0}
   .plan li::before{content:"•"; color:var(--orange); font-weight:900; margin-right:8px}
   .plan .btn{margin-top:auto}
+  .cta{display:block; text-align:center; margin-top:10px}
   .cols{display:grid; grid-template-columns:1.2fr .8fr; gap:20px; align-items:start}
   @media(max-width:820px){ .cols{grid-template-columns:1fr} }
   .form{display:flex; flex-direction:column; gap:12px}
@@ -150,6 +151,28 @@
       <p style="color:var(--muted); font-size:14px; margin-bottom:10px">Use esta key na ativação do USB Redirector.</p>
       <div class="pixcode" id="dlKey"></div>
       <button class="btn ghost copybtn" id="dlKeyBtn" onclick="copyKey()">Copiar key</button>
+    </div>
+
+    <div class="card hidden" id="dlBox" style="margin-top:20px">
+      <h2 style="margin:0 0 6px">Downloads</h2>
+      <p style="color:var(--muted); font-size:14px; margin-bottom:12px">Baixe o app e o USB Redirector para montar sua conexão.</p>
+      <div class="grid plans">
+        <div class="card plan">
+          <h3>USB FIX — app</h3>
+          <p>Instale no computador onde está o equipamento conectado.</p>
+          <a id="dlAppC" class="btn cta" target="_blank" rel="noopener">Baixar app</a>
+        </div>
+        <div class="card plan">
+          <h3>USB Redirector — Cliente</h3>
+          <p>Instale no computador de trabalho, onde você usa o dispositivo remoto.</p>
+          <a id="dlUsbCliC" class="btn cta" target="_blank" rel="noopener">Baixar cliente</a>
+        </div>
+        <div class="card plan">
+          <h3>USB Redirector — Servidor</h3>
+          <p>Instale junto com o nosso app, na máquina onde o USB está conectado.</p>
+          <a id="dlUsbSrvC" class="btn cta" target="_blank" rel="noopener">Baixar servidor</a>
+        </div>
+      </div>
     </div>
   </div>
 </main>
@@ -301,7 +324,18 @@ async function loadDownloadsKey(){
     }else{
       box.classList.add('hidden');
     }
+    const usb = data.usbRedirector || {};
+    const dbox = $('#dlBox');
+    dbox.classList.remove('hidden');
+    setLink('#dlAppC', data.app && data.app.url);
+    setLink('#dlUsbCliC', usb.client && usb.client.url);
+    setLink('#dlUsbSrvC', usb.server && usb.server.url);
   }catch(_){}
+}
+
+function setLink(sel, url){
+  const a = $(sel);
+  if(url){ a.href = url; }
 }
 
 function copyPayload(){

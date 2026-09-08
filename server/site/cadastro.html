@@ -147,6 +147,7 @@ async function doLogin(e){
   try{
     const data = await api('POST','/login',{username:$('#lUser').value.trim().toLowerCase(), password:$('#lPass').value});
     token = data.token;
+    storeSession(data.user);
     location.href = '/comprar';
   }catch(err){ msg('#loginMsg', err.message, 'err'); }
   return false;
