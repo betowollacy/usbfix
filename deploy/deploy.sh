@@ -15,7 +15,7 @@ FRP_TOKEN="${FRP_TOKEN:-$(openssl rand -hex 24)}"
 echo "==> Atualizando sistema e instalando dependências..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y python3 python3-venv python3-pip curl unzip jq ufw openssl
+apt-get install -y python3 python3-venv python3-pip curl unzip jq ufw openssl git rsync
 
 echo "==> Criando usuário e estrutura em /opt/tunnel..."
 id -u tunnel >/dev/null 2>&1 || useradd -r -s /usr/sbin/nologin tunnel

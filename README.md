@@ -88,6 +88,20 @@ são editáveis pelo painel admin.
 - `deploy/deploy.sh` sobe frps + API + systemd + ufw do zero;
 - firewall: 22, 80, 443, 7000 (frp) e a faixa de portas do túnel (40000–49999).
 
+### Upgrade via GitHub
+
+Com o projeto publicado em `https://github.com/betowollacy/usbfix`, a VPS pode
+se atualizar direto do repositório sem precisar reenviar os arquivos:
+
+```bash
+sudo bash deploy/upgrade.sh            # atualiza para a última versão
+sudo bash deploy/upgrade.sh v1.2.3     # faz checkout de uma tag/commit específico
+```
+
+O script clona/puxa o repositório em `/opt/tunnel/src`, copia o `server/` para
+`/opt/tunnel/server`, atualiza as dependências e reinicia `frps` e `tunnel-api`
+via systemd. Requer `git` e `rsync` (já instalados pelo `deploy.sh`).
+
 ## Túnel real (frp)
 
 Sem os binários, rode `python client/download_frp.py` (baixa frpc/frps). No
