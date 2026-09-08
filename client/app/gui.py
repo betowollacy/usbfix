@@ -5,7 +5,6 @@ import queue
 import threading
 import tkinter as tk
 import uuid
-import webbrowser
 
 import customtkinter as ctk
 from PIL import Image
@@ -303,7 +302,6 @@ class App(ctk.CTk):
         self.clear(self.login, self.register)
         self.portal.pack(fill="both", expand=True)
         self._refresh_portal()
-        self._load_downloads()
 
     def _build_splash_win(self):
         self.splash_win = ctk.CTkToplevel(self)
@@ -633,28 +631,6 @@ class App(ctk.CTk):
                                      wraplength=330, justify="left", height=16)
         self.conn_err.pack(fill="x")
 
-        ctk.CTkLabel(inner, text="Downloads", text_color=MUTED, font=self._font_small,
-                     anchor="w", height=16).pack(fill="x", pady=(6, 2))
-        dl = self._box(inner)
-        dl.pack(fill="x", pady=(0, 4))
-        dlrow = ctk.CTkFrame(dl, fg_color="transparent", corner_radius=0)
-        dlrow.pack(fill="x", padx=8, pady=6)
-        self.dl_app = ctk.CTkButton(dlrow, text="App", command=self._open_dl_app, width=88,
-                                    fg_color=PANEL2, hover_color="#2a2440", text_color=TEXT,
-                                    font=self._font_small, corner_radius=8, cursor="hand2", height=30)
-        self.dl_app.pack(side="left", padx=(0, 6))
-        self.dl_cli = ctk.CTkButton(dlrow, text="Redirector Cliente", command=self._open_dl_cli, width=120,
-                                    fg_color=PANEL2, hover_color="#2a2440", text_color=TEXT,
-                                    font=self._font_small, corner_radius=8, cursor="hand2", height=30)
-        self.dl_cli.pack(side="left", padx=(0, 6))
-        self.dl_srv = ctk.CTkButton(dlrow, text="Redirector Servidor", command=self._open_dl_srv, width=132,
-                                    fg_color=PANEL2, hover_color="#2a2440", text_color=TEXT,
-                                    font=self._font_small, corner_radius=8, cursor="hand2", height=30)
-        self.dl_srv.pack(side="left")
-        self.dl_key = ctk.CTkLabel(inner, text="", text_color=OK, font=self._font_small,
-                                   anchor="w", wraplength=330, justify="left", height=16)
-        self.dl_key.pack(fill="x", padx=2, pady=(4, 0))
-
         foot = ctk.CTkFrame(self.portal, fg_color="transparent", corner_radius=0)
         foot.pack(fill="x", padx=22)
         self.btn_logout = ctk.CTkButton(foot, text="Sair", command=self._logout, width=88, height=34,
@@ -673,45 +649,6 @@ class App(ctk.CTk):
         self.pill = ctk.CTkLabel(row, text="offline", text_color="#201500", fg_color=WARN,
                                  font=self._font_small, corner_radius=999, padx=12, height=26)
         self.pill.pack(side="right")
-
-    def _open_dl_app(self):
-        webbrowser.open(self._dl_url("app"))
-
-    def _open_dl_cli(self):
-        webbrowser.open(self._dl_url("cli"))
-
-    def _open_dl_srv(self):
-        webbrowser.open(self._dl_url("srv"))
-
-    def _dl_url(self, which):
-        base = self.api.base
-        data = getattr(self, "_dl_data", None) or {}
-        if which == "app":
-            url = (data.get("app") or {}).get("url", "/downloads/Instalar USB FIX.exe")
-        elif which == "cli":
-            url = (data.get("usbRedirector") or {}).get("client") or {}
-            url = (url.get("url") or "") if isinstance(url, dict) else ""
-            if not url:
-                return ""
-        else:
-            url = (data.get("usbRedirector") or {}).get("server") or {}
-            url = (url.get("url") or "") if isinstance(url, dict) else ""
-            if not url:
-                return ""
-        return base + url if url.startswith("/") else url
-
-    def _load_downloads(self):
-        self.bg(self.api.downloads, self._on_downloads)
-
-    def _on_downloads(self, data, err):
-        if err or not data:
-            return
-        self._dl_data = data
-        key = data.get("activationKey") or ""
-        if key:
-            self.dl_key.configure(text=f"Key de ativação: {key}")
-        else:
-            self.dl_key.configure(text="Key de ativação disponível após liberação do plano.")
 
     def _com_number(self, value):
         digits = "".join(c for c in value if c.isdigit())
