@@ -1,3 +1,4 @@
+import concurrent.futures
 import hashlib
 import re
 import secrets
@@ -572,7 +573,10 @@ def user_sessions(user_id):
 
 
 def peers_for_port(port):
-    """Lista conexões TCP estabelecidas na porta pública do túnel (via ss)."""
+    """Lista conexões TCP estabelecidas na porta pública do túnel (via ss).
+
+    Tenta resolver o nome do PC (DNS reverso) para cada IP, sem bloquear.
+    """
     if not port:
         return []
     try:
@@ -582,7 +586,7 @@ def peers_for_port(port):
         )
     except Exception:
         return []
-    peers = []
+    raw = []
     for line in proc.stdout.splitlines():
         parts = line.split()
         if len(parts) >= 5:
@@ -592,8 +596,22 @@ def peers_for_port(port):
             except ValueError:
                 continue
             host = host.strip("[]")
-            peers.append({"host": host, "port": int(rport or 0)})
-    return peers
+            raw.append({"host": host, "port": int(rport or 0)})
+
+    def lookup(host):
+        try:
+            return socket.gethostbyaddr(host)[0]
+        except Exception:
+            return None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+        futures = {ex.submit(lookup, p["host"]): p for p in raw}
+        for fut, peer in futures.items():
+            try:
+                peer["name"] = fut.result(timeout=2) or None
+            except Exception:
+                peer["name"] = None
+    return raw
 
 
 # --- pagamentos / plano -----------------------------------------------
