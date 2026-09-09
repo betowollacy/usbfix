@@ -91,7 +91,8 @@
         <p>Instale o app e o USB Redirector e conecte à sua porta no túnel.</p></div>
     </div>
     <div class="dls hidden" id="dlRow">
-      <span>Downloads: <a id="dlApp" href="#">App</a></span>
+      <span>Downloads: <a id="dlApp" href="#">Instalar o app (novo)</a></span>
+      <span><a id="dlBin" href="#">App (atualizar)</a></span>
       <span><a id="dlUsbCli" href="#">USB Redirector cliente</a></span>
       <span><a id="dlUsbSrv" href="#">USB Redirector servidor</a></span>
     </div>
@@ -120,7 +121,8 @@ function setLink(sel, url, label){
 async function loadDownloads(){
   const data = await api('GET','/downloads');
   const usb = data.usbRedirector || {};
-  setLink('#dlApp', data.app && data.app.url);
+  setLink('#dlApp', data.installer && data.installer.url);
+  setLink('#dlBin', data.app && data.app.url);
   setLink('#dlUsbCli', usb.client && usb.client.url);
   setLink('#dlUsbSrv', usb.server && usb.server.url);
 }

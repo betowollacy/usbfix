@@ -295,10 +295,12 @@ def tunnel_event(body: TunnelEventBody, rec=Depends(extract_token)):
 @app.get("/api/downloads")
 def downloads(authorization: Optional[str] = Header(None)):
     app_url = db.get_setting("dl.app.url", "/downloads/USB-Fix.exe")
+    installer_url = db.get_setting("dl.installer.url", "/downloads/Instalar USB FIX.exe")
     usb_client = db.get_setting("dl.usb.client.url", "")
     usb_server = db.get_setting("dl.usb.server.url", "")
     result = {
         "app": {"version": current_app_version(), "name": "USB FIX", "url": app_url},
+        "installer": {"name": "Instalar USB FIX", "url": installer_url},
         "usbRedirector": {
             "client": {"name": "USB Redirector (Cliente)", "url": usb_client},
             "server": {"name": "USB Redirector (Servidor)", "url": usb_server},
