@@ -117,7 +117,7 @@
         <div class="card plan">
           <h3>USB FIX — app</h3>
           <p>Instale no computador onde está o equipamento conectado.</p>
-          <a id="dlAppC" class="btn cta" target="_blank" rel="noopener">Baixar app</a>
+          <a id="dlAppC" class="btn cta" target="_blank" rel="noopener">Baixar instalador</a>
         </div>
         <div class="card plan">
           <h3>USB Redirector — Cliente</h3>
@@ -330,7 +330,7 @@ async function loadDownloadsKey(){
     const usb = data.usbRedirector || {};
     const dbox = $('#dlBox');
     dbox.classList.remove('hidden');
-    setLink('#dlAppC', data.app && data.app.url);
+    setLink('#dlAppC', data.installer && data.installer.url);
     setLink('#dlUsbCliC', usb.client && usb.client.url);
     setLink('#dlUsbSrvC', usb.server && usb.server.url);
   }catch(_){}
