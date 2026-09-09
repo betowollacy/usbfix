@@ -11,7 +11,8 @@ import customtkinter as ctk
 from PIL import Image
 from tkinter import messagebox
 
-from . import creds, logo, usb
+from . import creds, logo
+from . import redirector
 from .api import Api, ApiError
 from .config import API_BASE, APP_NAME, DATA_DIR, VERSION
 from .tunnel import Tunnel
@@ -623,6 +624,14 @@ class App(ctk.CTk):
                                       font=self._font_small, corner_radius=8, cursor="hand2", anchor="e", width=72)
         self.copy_btn.pack(side="right", padx=(0, 6), pady=6)
 
+        ctk.CTkLabel(inner, text="Aparelho detectado", text_color=MUTED, font=self._font_small, anchor="w", height=16).pack(fill="x", pady=(0, 4))
+        self.usb_lbl = ctk.CTkLabel(inner, text="Procurando…", text_color=TEXT, font=self._font_mono,
+                                    anchor="w", justify="left", wraplength=330, padx=14, pady=8, height=24)
+        self.usb_lbl.pack(fill="x", pady=(0, 4))
+        self.usb_hint = ctk.CTkLabel(inner, text="Aparelho conectado pelo cliente", text_color=MUTED,
+                                     font=self._font_small, anchor="w", height=14)
+        self.usb_hint.pack(fill="x", pady=(0, 8))
+
         ctk.CTkLabel(inner, text="Escolha seu nome", text_color=MUTED, font=self._font_small, anchor="w", height=16).pack(fill="x", pady=(0, 4))
         cfg = self._box(inner)
         cfg.pack(fill="x", pady=(0, 8))
@@ -702,6 +711,23 @@ class App(ctk.CTk):
         self.sub_suffix.configure(text=f".{domain}" if domain else "")
         self._render_valid(u)
         self._update_pill()
+        self.bg(redirector.list_client_devices, self._on_usb_devices)
+        if not getattr(self, "_usb_poll_started", False):
+            self._usb_poll_started = True
+            self._poll_usb()
+
+    def _poll_usb(self):
+        self.after(4000, self._poll_usb)
+        if not self.user:
+            return
+        self.bg(redirector.list_client_devices, self._on_usb_devices)
+
+    def _on_usb_devices(self, devices, err):
+        if err or not devices:
+            self.usb_lbl.configure(text="Nenhum aparelho do cliente conectado", text_color=MUTED)
+            return
+        names = [d["name"] for d in devices]
+        self.usb_lbl.configure(text="\n".join(names), text_color=WARN)
 
     def _format_valid(self, u):
         valid = u.get("validUntil") or ""
@@ -790,11 +816,23 @@ class App(ctk.CTk):
             return
         peers = []
         if not err and data:
-            peers = data.get("peers") or []
+            seen = set()
+            for p in data.get("peers") or []:
+                if isinstance(p, dict):
+                    host = p.get("host") or ""
+                    port = p.get("port")
+                else:
+                    host, port = str(p), None
+                key = (host, port)
+                if key in seen:
+                    continue
+                seen.add(key)
+                peers.append((host, port))
         if not peers:
             self.peers_lbl.configure(text="Aguardando cliente…", text_color=MUTED)
         else:
-            lines = [f"🖥 {p['host']}:{p['port']}" for p in peers]
+            lines = [f"🖥 {host}:{port}" if port is not None else f"🖥 {host}"
+                     for host, port in peers]
             self.peers_lbl.configure(text="\n".join(lines), text_color=OK)
 
     def _heartbeat(self):
