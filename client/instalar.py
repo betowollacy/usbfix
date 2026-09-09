@@ -20,17 +20,104 @@ def msgbox(text, title="USB FIX", icon=MB_ICONINFO):
     windll.user32.MessageBoxW(0, text, title, MB_OK | icon)
 
 
+def desktop_folders():
+    """Caminhos prováveis da área de trabalho (perfil + OneDrive + Público)."""
+    dirs = []
+    try:
+        import ctypes.wintypes
+        buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
+        ctypes.windll.shell32.SHGetFolderPathW(None, 0x0000, None, 0, buf)
+        if buf.value:
+            dirs.append(buf.value)
+    except Exception:
+        pass
+    try:
+        import winreg
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders",
+        ) as key:
+            val = winreg.QueryValueEx(key, "Desktop")[0]
+        expanded = os.path.expandvars(val).replace("/", "\\")
+        if expanded not in dirs:
+            dirs.append(expanded)
+    except Exception:
+        pass
+    cands = [
+        os.path.join(os.environ.get("USERPROFILE", ""), "Desktop"),
+        os.path.join(os.environ.get("USERPROFILE", ""), "OneDrive", "Desktop"),
+        os.path.join(os.path.expandvars("%PUBLIC%"), "Desktop"),
+    ]
+    for c in cands:
+        if c not in dirs:
+            dirs.append(c)
+    return [d for d in dirs if d and os.path.isdir(d)]
+
+
+def _create_shortcut(target, workdir, icon):
+    """Cria 'USB FIX.lnk' em qualquer pasta de desktop disponível. Retorna True se ao menos um foi criado."""
+    created_any = False
+    notify = (
+        "$r=New-Object -ComObject Shell.Application;"
+        "$r.Namespace($d).ParseName('USB FIX.lnk') | Out-Null;"
+        "Add-Type -Namespace Win32 -Name Shell -MemberDefinition '[DllImport(\"shell32.dll\")] public static extern void SHChangeNotify(int wEventId, int uFlags, IntPtr dwItem1, IntPtr dwItem2);';"
+        "[Win32.Shell]::SHChangeNotify(0x8000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)"
+    )
+    for folder in desktop_folders():
+        ps = (
+            "$d='" + folder.replace("'", "''") + "';"
+            "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($d+'\\USB FIX.lnk');"
+            "$s.TargetPath='" + str(target).replace("'", "''") + "';"
+            "$s.WorkingDirectory='" + str(workdir).replace("'", "''") + "';"
+            "$s.IconLocation='" + icon.replace("'", "''") + "';"
+            "$s.Description='USB FIX - acesso remoto USB';"
+            "$s.Save();"
+            + notify
+        )
+        try:
+            subprocess.run(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-NonInteractive", "-Command", ps],
+                check=True, timeout=30,
+            )
+            if os.path.exists(os.path.join(folder, "USB FIX.lnk")):
+                created_any = True
+        except Exception:
+            continue
+    return created_any
+
+
 def write_uninstaller(app_dir):
+    ps_remove_lnk = (
+        "$paths=@();"
+        "$paths+=([Environment]::GetFolderPath('Desktop'));"
+        "$paths+=($env:USERPROFILE+'\\Desktop');"
+        "$paths+=($env:USERPROFILE+'\\OneDrive\\Desktop');"
+        "$paths+=('C:\\Users\\Public\\Desktop');"
+        "$paths+=(Join-Path $env:APPDATA 'Microsoft\\Windows\\Start Menu\\Programs');"
+        "foreach($p in $paths){"
+        "  $l=Join-Path $p 'USB FIX.lnk';"
+        "  if(Test-Path $l){Remove-Item $l -Force};"
+        "  $l2=Join-Path $p 'USB-Fix.lnk';"
+        "  if(Test-Path $l2){Remove-Item $l2 -Force}"
+        "}"
+    )
+    bg = (
+        "start \"\" /b cmd /c "
+        "\"ping -n 3 127.0.0.1 >nul"
+        " & del /f /q \"%APP%\\desinstalar.bat\" >nul 2>&1"
+        " & del /f /q \"%APP%\\USB-Fix.exe\" >nul 2>&1"
+        " & del /f /q \"%APP%\\USB-Fix.ico\" >nul 2>&1"
+        " & rmdir /q \"%APP%\" >nul 2>&1\""
+    )
     lines = [
         "@echo off",
+        'title Desinstalando USB FIX...',
+        "set APP=%~dp0",
+        'if "%APP:~-1%"=="\\" set APP=%APP:~0,-1%',
         "taskkill /f /im USB-Fix.exe >nul 2>&1",
-        "timeout /t 1 /nobreak >nul",
         'reg delete "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\USB FIX" /f >nul 2>&1',
-        'del /f /q "' + str(app_dir / EXE_NAME) + '" >nul 2>&1',
-        'del /f /q "' + str(app_dir / ICON_NAME) + '" >nul 2>&1',
-        'del /f /q "' + str(app_dir / "desinstalar.bat") + '" >nul 2>&1',
-        'rmdir /q "' + str(app_dir) + '" >nul 2>&1',
-        "powershell -NoProfile -NonInteractive -Command \"$d=[Environment]::GetFolderPath('Desktop'); $s=$d+'\\USB FIX.lnk'; if(Test-Path $s){Remove-Item $s -Force}\"",
+        "powershell -NoProfile -ExecutionPolicy Bypass -NonInteractive -Command \"" + ps_remove_lnk + "\" >nul 2>&1",
+        bg,
         "exit /b 0",
     ]
     try:
@@ -83,16 +170,13 @@ def main():
         else:
             shortcut_icon = str(app_dir / EXE_NAME) + ",0"
 
-        ps = (
-            "$d=[Environment]::GetFolderPath('Desktop');"
-            "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($d+'\\USB FIX.lnk');"
-            "$s.TargetPath='" + str(app_dir / EXE_NAME) + "';"
-            "$s.WorkingDirectory='" + str(app_dir) + "';"
-            "$s.IconLocation='" + shortcut_icon + "';"
-            "$s.Description='USB FIX - acesso remoto USB';"
-            "$s.Save()"
-        )
-        subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps], check=True)
+        created = _create_shortcut(app_dir / EXE_NAME, app_dir, shortcut_icon)
+        if not created:
+            msgbox(
+                "USB FIX foi instalado, mas o Windows não permitiu criar o atalho.\n\n"
+                "Você pode abrir o app em:\n" + str(app_dir / EXE_NAME),
+                icon=MB_ICONERROR,
+            )
 
         write_uninstaller(app_dir)
         register_uninstall(app_dir)
