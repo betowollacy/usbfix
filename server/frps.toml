@@ -3,7 +3,7 @@ bindAddr = "0.0.0.0"
 bindPort = 7000
 
 auth.method = "token"
-auth.token = "tunnel-dev-token"   # TROQUE em produção
+auth.token = "" # A autorização real é validada pelo plugin local
 
 transport.tls.force = true
 
@@ -14,3 +14,11 @@ transport.tls.force = true
 allowPorts = [
     {start = 40000, end = 49999}
 ]
+
+# Autorização individual de clientes e isolamento por porta.
+# O plugin só aceita tokens ativos e a porta atribuída à própria conta.
+[[httpPlugins]]
+name = "usbfix-user-auth"
+addr = "127.0.0.1:9000"
+path = "/handler"
+ops = ["Login", "NewProxy"]
