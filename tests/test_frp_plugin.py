@@ -95,3 +95,27 @@ def test_expired_account_is_rejected(client):
     response = client.post("/handler?op=Login", json=login_payload(rec))
     assert response.status_code == 200
     assert response.json()["reject"] is True
+
+
+def test_reset_token_is_hashed_and_consumed_once(client):
+    rec = active_account()
+    raw = db.create_reset_token(rec["username"])
+    with db.connect() as conn:
+        row = conn.execute(
+            "SELECT token_hash, used FROM resets WHERE user_id = ?", (rec["id"],)
+        ).fetchone()
+    assert row["token_hash"] != raw
+    assert row["used"] == 0
+
+    old_api_token = rec["token"]
+    assert db.consume_reset_token(raw, "NovaSenhaSegura456")
+    updated = db.get_user(rec["username"])
+    assert updated["token"] != old_api_token
+    assert db.verify_password("NovaSenhaSegura456", updated["password"])
+    assert not db.consume_reset_token(raw, "OutraSenhaSegura789")
+
+
+def test_reset_rejects_short_password(client):
+    rec = active_account()
+    raw = db.create_reset_token(rec["username"])
+    assert not db.consume_reset_token(raw, "curta")
