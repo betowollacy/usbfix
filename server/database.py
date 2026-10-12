@@ -279,8 +279,8 @@ def register_user(identifier, password, email=""):
                 raise ValueError("usuário já cadastrado")
             status = "active" if promo else "pending"
             conn.execute(
-                "INSERT INTO users (username, email, password, status, registered_at) VALUES (?, ?, ?, ?, ?)",
-                (username, email or None, hash_password(password), status, now),
+                "INSERT INTO users (username, email, password, status, registered_at, frp_token) VALUES (?, ?, ?, ?, ?, ?)",
+                (username, email or None, hash_password(password), status, now, new_token()),
             )
             row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
             if promo:
