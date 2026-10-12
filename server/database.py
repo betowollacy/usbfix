@@ -163,7 +163,7 @@ def create_reset_token(identifier):
             "VALUES (?, ?, 0, ?, ?)",
             (
                 rec["id"],
-                raw,
+                hashlib.sha256(raw.encode("utf-8")).hexdigest(),
                 iso(utcnow()),
                 iso(utcnow() + timedelta(hours=RESET_TTL_HOURS)),
             ),
@@ -175,10 +175,13 @@ def get_reset_user(token):
     if not token:
         return None
     row = None
+    # Tokens novos são armazenados apenas como hash. O valor bruto também é
+    # consultado temporariamente para manter válidos links emitidos antes da atualização.
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
     with connect() as conn:
         row = conn.execute(
-            "SELECT r.* FROM resets r WHERE r.token_hash = ? AND r.used = 0",
-            (token,),
+            "SELECT r.* FROM resets r WHERE r.token_hash IN (?, ?) AND r.used = 0",
+            (token_hash, token),
         ).fetchone()
     if not row:
         return None
@@ -189,7 +192,11 @@ def get_reset_user(token):
 
 def mark_reset_used(reset_id):
     with connect() as conn:
-        conn.execute("UPDATE resets SET used = 1 WHERE id = ?", (reset_id,))
+        cursor = conn.execute(
+            "UPDATE resets SET used = 1 WHERE id = ? AND used = 0",
+            (reset_id,),
+        )
+        return cursor.rowcount == 1
 
 
 # --- nomes / portas ----------------------------------------------------
