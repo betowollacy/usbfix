@@ -52,9 +52,8 @@ get_val() {
     grep "^$1=" /etc/tunnel/env | head -1 | cut -d= -f2- | sed 's/^"//; s/"$//'
 }
 SUB_DOMAIN="${TUNNEL_SUBDOMAIN_HOST:-$(get_val TUNNEL_SUBDOMAIN_HOST)}"
-if [ -n "$FRP_TOKEN" ]; then
-    sed -i 's/^auth\.token = .*/auth.token = "'"$FRP_TOKEN"'"/' "$TOML"
-fi
+# O plugin valida tokens individuais; não restaurar segredo FRP compartilhado.
+sed -i 's/^auth\\.token = .*/auth.token = ""/' "$TOML"
 if [ -n "$SUB_DOMAIN" ]; then
     sed -i 's|^subdomainHost = .*|subdomainHost = "'"$SUB_DOMAIN"'"|; s|^# subdomainHost = .*|subdomainHost = "'"$SUB_DOMAIN"'"|' "$TOML"
 fi
