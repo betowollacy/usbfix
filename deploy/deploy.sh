@@ -10,7 +10,6 @@ set -a; source "$ENV_FILE"; set +a
 
 DOMAIN="${TUNNEL_SUBDOMAIN_HOST:-usbfix.site}"
 ADMIN_TOKEN="${TUNNEL_ADMIN_TOKEN:-$(openssl rand -hex 24)}"
-FRP_TOKEN="${FRP_TOKEN:-$(openssl rand -hex 24)}"
 
 echo "==> Atualizando sistema e instalando dependências..."
 export DEBIAN_FRONTEND=noninteractive
@@ -55,7 +54,6 @@ TUNNEL_ADMIN_TOKEN=$ADMIN_TOKEN
 TUNNEL_SUBDOMAIN_HOST=$DOMAIN
 TUNNEL_FRPS_ADDR=$TUNNEL_FRPS_ADDR
 TUNNEL_FRPS_PORT=${TUNNEL_FRPS_PORT:-7000}
-TUNNEL_FRPS_TOKEN=$FRP_TOKEN
 TUNNEL_PORT_MIN=${TUNNEL_PORT_MIN:-40000}
 TUNNEL_PORT_MAX=${TUNNEL_PORT_MAX:-49999}
 TUNNEL_SUBSCRIPTION_DAYS=${TUNNEL_SUBSCRIPTION_DAYS:-30}
@@ -69,6 +67,7 @@ chmod 600 /etc/tunnel/env
 echo "==> Instalando serviços systemd..."
 cp "$PROJECT_DIR/deploy/systemd/frps.service" /etc/systemd/system/
 cp "$PROJECT_DIR/deploy/systemd/tunnel-api.service" /etc/systemd/system/
+cp "$PROJECT_DIR/deploy/systemd/frp-auth.service" /etc/systemd/system/
 
 echo "==> Copiando scripts de deploy para a VPS..."
 mkdir -p /opt/tunnel/deploy/systemd
@@ -77,7 +76,7 @@ cp "$PROJECT_DIR/deploy/systemd/." /opt/tunnel/deploy/systemd/
 chmod +x /opt/tunnel/deploy/*.sh
 chown -R tunnel:tunnel /opt/tunnel /etc/tunnel
 systemctl daemon-reload
-systemctl enable --now frps tunnel-api
+systemctl enable --now frp-auth tunnel-api frps
 
 echo "==> Firewall (ufw)..."
 ufw allow OpenSSH >/dev/null 2>&1 || ufw allow 22/tcp >/dev/null
@@ -90,6 +89,7 @@ echo "=================================================================="
 echo "  DEPLOY CONCLUÍDO"
 echo "  API:          somente local (127.0.0.1:8000), publicar via HTTPS/nginx"
 echo "  Token admin:  $ADMIN_TOKEN"
+echo "  FRP auth:     token individual por conta, validado pelo plugin local"
 echo "  Domínio:      aponte *.${DOMAIN} -> $TUNNEL_FRPS_ADDR  (ou use IP:porta)"
 echo "  Firewall:     OpenSSH + 7000 + 40000-49999 (API 8000 fechada ao público)"
 echo
