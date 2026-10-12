@@ -54,6 +54,17 @@ get_val() {
 SUB_DOMAIN="${TUNNEL_SUBDOMAIN_HOST:-$(get_val TUNNEL_SUBDOMAIN_HOST)}"
 # O plugin valida tokens individuais; não restaurar segredo FRP compartilhado.
 sed -i 's/^auth\\.token = .*/auth.token = ""/' "$TOML"
+if ! grep -q 'name = "usbfix-user-auth"' "$TOML"; then
+    cat >> "$TOML" <<'FRPPLUGIN'
+
+# Autorização individual de clientes e isolamento por porta.
+[[httpPlugins]]
+name = "usbfix-user-auth"
+addr = "127.0.0.1:9000"
+path = "/handler"
+ops = ["Login", "NewProxy"]
+FRPPLUGIN
+fi
 if [ -n "$SUB_DOMAIN" ]; then
     sed -i 's|^subdomainHost = .*|subdomainHost = "'"$SUB_DOMAIN"'"|; s|^# subdomainHost = .*|subdomainHost = "'"$SUB_DOMAIN"'"|' "$TOML"
 fi
