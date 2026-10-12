@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS users (
     subdomain TEXT UNIQUE,
     server_port INTEGER UNIQUE,
     token TEXT UNIQUE,
+    frp_token TEXT UNIQUE,
     device_name TEXT,
     valid_until TEXT,
     changes_left INTEGER NOT NULL DEFAULT 0,
@@ -99,6 +100,11 @@ def init_db():
             conn.execute("ALTER TABLE users ADD COLUMN test_mode INTEGER NOT NULL DEFAULT 0")
         if "lifetime" not in cols:
             conn.execute("ALTER TABLE users ADD COLUMN lifetime INTEGER NOT NULL DEFAULT 0")
+        if "frp_token" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN frp_token TEXT")
+        rows = conn.execute("SELECT id FROM users WHERE frp_token IS NULL OR frp_token = ''").fetchall()
+        for row in rows:
+            conn.execute("UPDATE users SET frp_token = ? WHERE id = ?", (new_token(), row["id"]))
         conn.execute("UPDATE users SET email = username WHERE email IS NULL OR email = ''")
 
 
@@ -304,6 +310,14 @@ def get_by_token(token):
     return dict(row) if row else None
 
 
+def get_by_frp_token(token):
+    if not token:
+        return None
+    with connect() as conn:
+        row = conn.execute("SELECT * FROM users WHERE frp_token = ?", (token,)).fetchone()
+    return dict(row) if row else None
+
+
 def set_username(identifier, new_username):
     identifier = (identifier or "").strip().lower()
     new_username = (new_username or "").strip().lower()
@@ -357,6 +371,11 @@ def effective_status(rec):
 
 def public_state(rec):
     endpoint_domain = SUBDOMAIN_HOST
+    if not rec.get("frp_token"):
+        token = new_token()
+        with connect() as conn:
+            conn.execute("UPDATE users SET frp_token = ? WHERE id = ? AND (frp_token IS NULL OR frp_token = '')", (token, rec["id"]))
+        rec = get_user(rec["username"]) or rec
     return {
         "id": rec["id"],
         "username": rec["username"],
@@ -374,7 +393,7 @@ def public_state(rec):
         "frps": {
             "addr": FRPS_ADDR,
             "port": FRPS_PORT,
-            "token": FRPS_TOKEN,
+            "token": rec.get("frp_token"),
         },
     }
 
