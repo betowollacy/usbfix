@@ -178,7 +178,7 @@ def get_reset_user(token):
     with connect() as conn:
         row = conn.execute(
             "SELECT r.* FROM resets r WHERE r.token_hash = ? AND r.used = 0",
-            (token,),
+            (hashlib.sha256(token.encode("utf-8")).hexdigest(),),
         ).fetchone()
     if not row:
         return None
@@ -247,8 +247,8 @@ def allocate_endpoints(conn, user_id):
 def register_user(identifier, password, email=""):
     identifier = (identifier or "").strip().lower()
     email = (email or "").strip().lower()
-    if len(password) < 6:
-        raise ValueError("senha muito curta (mínimo 6 caracteres)")
+    if len(password) < 10:
+        raise ValueError("senha muito curta (mínimo 10 caracteres)")
     if "@" in identifier:
         if not EMAIL_RE.match(identifier):
             raise ValueError("e-mail inválido")
@@ -680,3 +680,36 @@ def mark_payment_paid(asaas_payment_id):
             conn.rollback()
             raise
     return get_user(row["username"]), False
+
+def consume_reset_token(token, new_password):
+    """Consome um token de redefinição uma única vez e troca a senha atomicamente."""
+    if not token or len(new_password) < 10:
+        return False
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    now = utcnow()
+    with connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT id, user_id, expires_at FROM resets WHERE token_hash = ? AND used = 0",
+            (token_hash,),
+        ).fetchone()
+        if not row:
+            conn.rollback()
+            return False
+        expires = parsable(row["expires_at"])
+        if not expires or expires <= now:
+            conn.rollback()
+            return False
+        changed = conn.execute(
+            "UPDATE resets SET used = 1 WHERE id = ? AND used = 0", (row["id"],)
+        ).rowcount
+        if changed != 1:
+            conn.rollback()
+            return False
+        conn.execute(
+            "UPDATE users SET password = ?, token = ? WHERE id = ?",
+            (hash_password(new_password), new_token(), row["user_id"]),
+        )
+        conn.execute("UPDATE resets SET used = 1 WHERE user_id = ?", (row["user_id"],))
+        conn.commit()
+    return True
