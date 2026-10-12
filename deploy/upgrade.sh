@@ -79,6 +79,9 @@ echo "==> Ajustando permissões"
 chown -R tunnel:tunnel /opt/tunnel/server /opt/tunnel/deploy /opt/tunnel/data /opt/tunnel/venv
 chown tunnel:tunnel /opt/tunnel/frps /opt/tunnel/frps.toml 2>/dev/null || true
 
+echo "==> Fechando a porta pública da API, se houver regra antiga"
+ufw delete allow 8000/tcp >/dev/null 2>&1 || true
+
 echo "==> Reiniciando serviços"
 systemctl restart frps tunnel-api
 
