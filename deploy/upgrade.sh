@@ -51,7 +51,6 @@ fi
 get_val() {
     grep "^$1=" /etc/tunnel/env | head -1 | cut -d= -f2- | sed 's/^"//; s/"$//'
 }
-FRP_TOKEN="${TUNNEL_FRPS_TOKEN:-$(get_val TUNNEL_FRPS_TOKEN)}"
 SUB_DOMAIN="${TUNNEL_SUBDOMAIN_HOST:-$(get_val TUNNEL_SUBDOMAIN_HOST)}"
 if [ -n "$FRP_TOKEN" ]; then
     sed -i 's/^auth\.token = .*/auth.token = "'"$FRP_TOKEN"'"/' "$TOML"
@@ -67,6 +66,7 @@ echo "==> Atualizando dependências da API"
 echo "==> Copiando arquivos de serviço systemd"
 cp "$SRC_DIR/deploy/systemd/frps.service" /etc/systemd/system/
 cp "$SRC_DIR/deploy/systemd/tunnel-api.service" /etc/systemd/system/
+cp "$SRC_DIR/deploy/systemd/frp-auth.service" /etc/systemd/system/
 systemctl daemon-reload
 
 echo "==> Salvando scripts de deploy em /opt/tunnel/deploy"
@@ -83,7 +83,8 @@ echo "==> Fechando a porta pública da API, se houver regra antiga"
 ufw delete allow 8000/tcp >/dev/null 2>&1 || true
 
 echo "==> Reiniciando serviços"
-systemctl restart frps tunnel-api
+systemctl enable frp-auth
+systemctl restart frp-auth tunnel-api frps
 
 echo
 echo "=================================================================="
