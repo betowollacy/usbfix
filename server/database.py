@@ -163,7 +163,7 @@ def create_reset_token(identifier):
             "VALUES (?, ?, 0, ?, ?)",
             (
                 rec["id"],
-                raw,
+                hashlib.sha256(raw.encode("utf-8")).hexdigest(),
                 iso(utcnow()),
                 iso(utcnow() + timedelta(hours=RESET_TTL_HOURS)),
             ),
