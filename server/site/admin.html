@@ -63,7 +63,7 @@
     <h2>Entrar no painel</h2>
     <form class="form" onsubmit="return doLogin(event)">
       <label>Senha/Token admin (TUNNEL_ADMIN_TOKEN)</label>
-      <input id="admToken" required>
+      <input id="admToken" type="password" autocomplete="current-password" required>
       <button class="btn" type="submit">Entrar</button>
     </form>
     <div id="authMsg" class="msg"></div>
@@ -121,7 +121,7 @@
 
 <script>
 const $ = s => document.querySelector(s);
-let adminToken = localStorage.getItem('tunnel.admin') || '';
+let adminToken = sessionStorage.getItem('tunnel.admin') || '';
 let plans = [];
 let testEnabled = false;
 
@@ -139,7 +139,7 @@ async function api(method, path, body){
 function doLogin(e){
   e.preventDefault();
   adminToken = $('#admToken').value.trim();
-  try{ localStorage.setItem('tunnel.admin', adminToken); }catch(_){}
+  try{ sessionStorage.setItem('tunnel.admin', adminToken); }catch(_){}
   $('#authMsg').className = 'msg';
   return open();
 }
@@ -329,7 +329,7 @@ async function userAction(username, action, ev){
 }
 
 function logout(){
-  adminToken=''; try{ localStorage.removeItem('tunnel.admin'); }catch(_){}
+  adminToken=''; try{ sessionStorage.removeItem('tunnel.admin'); }catch(_){}
   location.reload();
 }
 

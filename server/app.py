@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -42,13 +41,7 @@ def rate_limit(ip: str, scope: str, limit: int = 5, window: int = 60):
     bucket.append(now)
     _attempts[key] = bucket[-limit * 3:]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+# API same-origin; CORS permissivo não é necessário para o app desktop.
 
 @app.on_event("startup")
 def startup():
@@ -238,8 +231,8 @@ def set_subdomain(body: SubdomainBody, rec=Depends(extract_token)):
 
 @app.post("/api/change-password")
 def change_password(body: PasswordBody, rec=Depends(extract_token)):
-    if len(body.new) < 6:
-        raise HTTPException(status_code=400, detail="nova senha muito curta (mínimo 6 caracteres)")
+    if len(body.new) < 10:
+        raise HTTPException(status_code=400, detail="nova senha muito curta (mínimo 10 caracteres)")
     if not db.verify_password(body.current, rec["password"]):
         raise HTTPException(status_code=400, detail="senha atual incorreta")
     db.change_password(rec["username"], body.new)
@@ -247,18 +240,12 @@ def change_password(body: PasswordBody, rec=Depends(extract_token)):
 
 
 @app.post("/api/reset-password")
-def reset_password(body: ResetBody):
-    info = db.get_reset_user(body.token)
-    if not info:
-        raise HTTPException(status_code=400, detail="link inválido ou expirado")
-    if len(body.new) < 6:
-        raise HTTPException(status_code=400, detail="nova senha muito curta (mínimo 6 caracteres)")
-    db.mark_reset_used(info["reset_id"])
-    with db.connect() as conn:
-        row = conn.execute("SELECT * FROM users WHERE id = ?", (info["user_id"],)).fetchone()
-    if not row:
-        raise HTTPException(status_code=404, detail="conta não encontrada")
-    db.change_password(row["username"], body.new)
+def reset_password(body: ResetBody, request: Request):
+    rate_limit(client_ip(request), "reset-password", limit=5, window=300)
+    if len(body.new) < 10:
+        raise HTTPException(status_code=400, detail="nova senha muito curta (mínimo 10 caracteres)")
+    if not db.consume_reset_token(body.token, body.new):
+        raise HTTPException(status_code=400, detail="link inválido, expirado ou já utilizado")
     return {"ok": True, "message": "senha redefinida, faça login"}
 
 
@@ -702,8 +689,8 @@ def admin_set_password(body: AdminPasswordBody, authorization: Optional[str] = H
     user = db.get_user(body.username)
     if not user:
         raise HTTPException(status_code=400, detail="usuário inválido")
-    if len(body.password) < 6:
-        raise HTTPException(status_code=400, detail="senha muito curta (mínimo 6 caracteres)")
+    if len(body.password) < 10:
+        raise HTTPException(status_code=400, detail="senha muito curta (mínimo 10 caracteres)")
     db.change_password(user["username"], body.password)
     return {"ok": True, "message": "senha definida pelo admin"}
 
@@ -712,7 +699,9 @@ def admin_set_password(body: AdminPasswordBody, authorization: Optional[str] = H
 def site_static(path: str):
     base = SITE_DIR.resolve()
     target = (base / path).resolve()
-    if not str(target).startswith(str(base)):
+    try:
+        target.relative_to(base)
+    except ValueError:
         raise HTTPException(status_code=404, detail="Not Found")
     if target.is_file():
         return FileResponse(target)

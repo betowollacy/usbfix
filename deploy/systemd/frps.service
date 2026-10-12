@@ -1,6 +1,7 @@
 [Unit]
 Description=FRP Server (tunnel)
-After=network.target
+After=network.target frp-auth.service
+Requires=frp-auth.service
 
 [Service]
 Type=simple

@@ -1,0 +1,26 @@
+name: Security tests
+
+on:
+  push:
+    branches: [main, "security/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install server dependencies and test tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r server/requirements.txt pytest httpx
+      - name: Compile Python sources
+        run: python -m compileall -q server client
+      - name: Test per-user FRP authorization
+        env:
+          TUNNEL_DATA_DIR: ${{ runner.temp }}/usbfix-test-data
+        run: pytest -q tests/test_frp_plugin.py

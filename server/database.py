@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS users (
     subdomain TEXT UNIQUE,
     server_port INTEGER UNIQUE,
     token TEXT UNIQUE,
+    frp_token TEXT UNIQUE,
     device_name TEXT,
     valid_until TEXT,
     changes_left INTEGER NOT NULL DEFAULT 0,
@@ -99,6 +100,11 @@ def init_db():
             conn.execute("ALTER TABLE users ADD COLUMN test_mode INTEGER NOT NULL DEFAULT 0")
         if "lifetime" not in cols:
             conn.execute("ALTER TABLE users ADD COLUMN lifetime INTEGER NOT NULL DEFAULT 0")
+        if "frp_token" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN frp_token TEXT")
+        rows = conn.execute("SELECT id FROM users WHERE frp_token IS NULL OR frp_token = ''").fetchall()
+        for row in rows:
+            conn.execute("UPDATE users SET frp_token = ? WHERE id = ?", (new_token(), row["id"]))
         conn.execute("UPDATE users SET email = username WHERE email IS NULL OR email = ''")
 
 
@@ -163,7 +169,7 @@ def create_reset_token(identifier):
             "VALUES (?, ?, 0, ?, ?)",
             (
                 rec["id"],
-                raw,
+                hashlib.sha256(raw.encode("utf-8")).hexdigest(),
                 iso(utcnow()),
                 iso(utcnow() + timedelta(hours=RESET_TTL_HOURS)),
             ),
@@ -178,7 +184,7 @@ def get_reset_user(token):
     with connect() as conn:
         row = conn.execute(
             "SELECT r.* FROM resets r WHERE r.token_hash = ? AND r.used = 0",
-            (token,),
+            (hashlib.sha256(token.encode("utf-8")).hexdigest(),),
         ).fetchone()
     if not row:
         return None
@@ -247,8 +253,8 @@ def allocate_endpoints(conn, user_id):
 def register_user(identifier, password, email=""):
     identifier = (identifier or "").strip().lower()
     email = (email or "").strip().lower()
-    if len(password) < 6:
-        raise ValueError("senha muito curta (mínimo 6 caracteres)")
+    if len(password) < 10:
+        raise ValueError("senha muito curta (mínimo 10 caracteres)")
     if "@" in identifier:
         if not EMAIL_RE.match(identifier):
             raise ValueError("e-mail inválido")
@@ -273,8 +279,8 @@ def register_user(identifier, password, email=""):
                 raise ValueError("usuário já cadastrado")
             status = "active" if promo else "pending"
             conn.execute(
-                "INSERT INTO users (username, email, password, status, registered_at) VALUES (?, ?, ?, ?, ?)",
-                (username, email or None, hash_password(password), status, now),
+                "INSERT INTO users (username, email, password, status, registered_at, frp_token) VALUES (?, ?, ?, ?, ?, ?)",
+                (username, email or None, hash_password(password), status, now, new_token()),
             )
             row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
             if promo:
@@ -301,6 +307,14 @@ def get_user(identifier):
 def get_by_token(token):
     with connect() as conn:
         row = conn.execute("SELECT * FROM users WHERE token = ?", (token,)).fetchone()
+    return dict(row) if row else None
+
+
+def get_by_frp_token(token):
+    if not token:
+        return None
+    with connect() as conn:
+        row = conn.execute("SELECT * FROM users WHERE frp_token = ?", (token,)).fetchone()
     return dict(row) if row else None
 
 
@@ -357,6 +371,11 @@ def effective_status(rec):
 
 def public_state(rec):
     endpoint_domain = SUBDOMAIN_HOST
+    if not rec.get("frp_token"):
+        token = new_token()
+        with connect() as conn:
+            conn.execute("UPDATE users SET frp_token = ? WHERE id = ? AND (frp_token IS NULL OR frp_token = '')", (token, rec["id"]))
+        rec = get_user(rec["username"]) or rec
     return {
         "id": rec["id"],
         "username": rec["username"],
@@ -374,7 +393,7 @@ def public_state(rec):
         "frps": {
             "addr": FRPS_ADDR,
             "port": FRPS_PORT,
-            "token": FRPS_TOKEN,
+            "token": rec.get("frp_token"),
         },
     }
 
@@ -680,3 +699,36 @@ def mark_payment_paid(asaas_payment_id):
             conn.rollback()
             raise
     return get_user(row["username"]), False
+
+def consume_reset_token(token, new_password):
+    """Consome um token de redefinição uma única vez e troca a senha atomicamente."""
+    if not token or len(new_password) < 10:
+        return False
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    now = utcnow()
+    with connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT id, user_id, expires_at FROM resets WHERE token_hash = ? AND used = 0",
+            (token_hash,),
+        ).fetchone()
+        if not row:
+            conn.rollback()
+            return False
+        expires = parsable(row["expires_at"])
+        if not expires or expires <= now:
+            conn.rollback()
+            return False
+        changed = conn.execute(
+            "UPDATE resets SET used = 1 WHERE id = ? AND used = 0", (row["id"],)
+        ).rowcount
+        if changed != 1:
+            conn.rollback()
+            return False
+        conn.execute(
+            "UPDATE users SET password = ?, token = ? WHERE id = ?",
+            (hash_password(new_password), new_token(), row["user_id"]),
+        )
+        conn.execute("UPDATE resets SET used = 1 WHERE user_id = ?", (row["user_id"],))
+        conn.commit()
+    return True
