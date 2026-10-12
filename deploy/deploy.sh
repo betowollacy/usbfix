@@ -82,17 +82,16 @@ systemctl enable --now frps tunnel-api
 echo "==> Firewall (ufw)..."
 ufw allow OpenSSH >/dev/null 2>&1 || ufw allow 22/tcp >/dev/null
 ufw allow 7000/tcp
-ufw allow 8000/tcp
 ufw allow proto tcp from any to any port "${TUNNEL_PORT_MIN:-40000}:${TUNNEL_PORT_MAX:-49999}"
 ufw --force enable
 
 echo
 echo "=================================================================="
 echo "  DEPLOY CONCLUÍDO"
-echo "  API:          http://$TUNNEL_FRPS_ADDR:8000"
+echo "  API:          somente local (127.0.0.1:8000), publicar via HTTPS/nginx"
 echo "  Token admin:  $ADMIN_TOKEN"
 echo "  Domínio:      aponte *.${DOMAIN} -> $TUNNEL_FRPS_ADDR  (ou use IP:porta)"
-echo "  Firewall:     OpenSSH + 7000 + 8000 + 40000-49999"
+echo "  Firewall:     OpenSSH + 7000 + 40000-49999 (API 8000 fechada ao público)"
 echo
 echo "  Para testar a partir do app do cliente:"
 echo "    abra o app, botão 'Servidor' -> http://$TUNNEL_FRPS_ADDR:8000"
