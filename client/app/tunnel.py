@@ -13,13 +13,16 @@ def render_frpc_toml(state, local_port):
     addr = frps.get("addr", "127.0.0.1")
     fport = frps.get("port", 7000)
     token = frps.get("token", "")
+    username = user.get("username", "")
 
     lines = [
         f'serverAddr = "{addr}"',
         f"serverPort = {fport}",
         "",
         'auth.method = "token"',
-        f'auth.token = "{token}"',
+        'auth.token = ""',
+        f'user = "{username}"',
+        f'metadatas.token = "{token}"',
         "",
         "transport.tls.enable = true",
         "",
@@ -33,7 +36,6 @@ def render_frpc_toml(state, local_port):
         f"localPort = {local_port}",
         f"remotePort = {remote_port}",
     ]
-    lines.append('metadatas.token = "%s"' % token)
     return "\n".join(lines) + "\n"
 
 
