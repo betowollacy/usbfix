@@ -36,8 +36,8 @@ tar -xzf "$ARCHIVE" -C /tmp
 cp "/tmp/frp_${REL}_linux_amd64/frps" /opt/tunnel/frps
 chmod +x /opt/tunnel/frps
 
-echo "==> Gravando token forte e domínio no frps.toml..."
-sed -i "s/^auth\.token = .*/auth.token = \"$FRP_TOKEN\"/" /opt/tunnel/frps.toml
+echo "==> Configurando domínio e autenticação individual no frps.toml..."
+sed -i 's/^auth\\.token = .*/auth.token = ""/' /opt/tunnel/frps.toml
 sed -i "s|^# subdomainHost = .*|subdomainHost = \"$DOMAIN\"|" /opt/tunnel/frps.toml
 
 if [ -z "${TUNNEL_FRPS_ADDR}" ]; then
