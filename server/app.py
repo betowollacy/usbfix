@@ -253,7 +253,9 @@ def reset_password(body: ResetBody):
         raise HTTPException(status_code=400, detail="link inválido ou expirado")
     if len(body.new) < 6:
         raise HTTPException(status_code=400, detail="nova senha muito curta (mínimo 6 caracteres)")
-    db.mark_reset_used(info["reset_id"])
+    # Consome o token atomicamente: apenas uma requisição concorrente pode usá-lo.
+    if not db.mark_reset_used(info["reset_id"]):
+        raise HTTPException(status_code=400, detail="link inválido ou já utilizado")
     with db.connect() as conn:
         row = conn.execute("SELECT * FROM users WHERE id = ?", (info["user_id"],)).fetchone()
     if not row:
