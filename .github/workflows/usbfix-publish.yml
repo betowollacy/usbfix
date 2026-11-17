@@ -1,0 +1,108 @@
+name: USB FIX - Build and publish downloads
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "client/**"
+      - "server/version.txt"
+      - ".github/workflows/usbfix-publish.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: usbfix-download-publish
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar ferramentas de build
+        run: python -m pip install --upgrade pip pyinstaller pillow
+
+      - name: Baixar frpc para Windows
+        working-directory: client
+        run: python download_frp.py
+
+      - name: Compilar aplicativo e instalador
+        working-directory: client
+        shell: cmd
+        run: build_tudo.bat
+
+      - name: Validar arquivos gerados
+        shell: pwsh
+        run: |
+          $required = @(
+            "client/dist/USB-Fix.exe",
+            "client/dist/Instalar USB FIX.exe"
+          )
+          foreach ($file in $required) {
+            if (!(Test-Path $file)) { throw "Arquivo de build ausente: $file" }
+          }
+
+      - name: Publicar artefatos do build
+        uses: actions/upload-artifact@v4
+        with:
+          name: usbfix-windows-downloads
+          path: |
+            client/dist/USB-Fix.exe
+            client/dist/Instalar USB FIX.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy-downloads:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar artefatos
+        uses: actions/download-artifact@v4
+        with:
+          name: usbfix-windows-downloads
+          path: dist
+
+      - name: Validar credenciais exclusivas do USB FIX
+        env:
+          VPS_HOST: ${{ secrets.USBFIX_HOST }}
+          VPS_USER: ${{ secrets.USBFIX_USER }}
+          VPS_PORT: ${{ secrets.USBFIX_PORT }}
+          VPS_KEY: ${{ secrets.USBFIX_SSH_KEY }}
+        run: |
+          test -n "$VPS_HOST" || { echo "::error::Configure o secret USBFIX_HOST"; exit 1; }
+          test -n "$VPS_USER" || { echo "::error::Configure o secret USBFIX_USER"; exit 1; }
+          test -n "$VPS_PORT" || { echo "::error::Configure o secret USBFIX_PORT"; exit 1; }
+          test -n "$VPS_KEY" || { echo "::error::Configure o secret USBFIX_SSH_KEY"; exit 1; }
+
+      - name: Configurar SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.USBFIX_SSH_KEY }}
+
+      - name: Enviar somente os downloads do USB FIX
+        env:
+          VPS_HOST: ${{ secrets.USBFIX_HOST }}
+          VPS_USER: ${{ secrets.USBFIX_USER }}
+          VPS_PORT: ${{ secrets.USBFIX_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" 'test -d /opt/tunnel/server/site/downloads && test -w /opt/tunnel/server/site/downloads'
+          scp -P "$VPS_PORT" "dist/USB-Fix.exe" "dist/Instalar USB FIX.exe" "$VPS_USER@$VPS_HOST:/opt/tunnel/server/site/downloads/"
+          local_app="$(sha256sum "dist/USB-Fix.exe" | cut -d' ' -f1)"
+          remote_app="$(ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "sha256sum '/opt/tunnel/server/site/downloads/USB-Fix.exe' | cut -d' ' -f1")"
+          local_installer="$(sha256sum "dist/Instalar USB FIX.exe" | cut -d' ' -f1)"
+          remote_installer="$(ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "sha256sum '/opt/tunnel/server/site/downloads/Instalar USB FIX.exe' | cut -d' ' -f1")"
+          test "$local_app" = "$remote_app"
+          test "$local_installer" = "$remote_installer"
+          echo "USB-Fix.exe: SHA-256 confirmado"
+          echo "Instalar USB FIX.exe: SHA-256 confirmado"
