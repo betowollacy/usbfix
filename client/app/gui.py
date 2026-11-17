@@ -18,18 +18,18 @@ from .config import API_BASE, APP_NAME, DATA_DIR, VERSION
 from .tunnel import Tunnel
 from . import updater
 
-BG = "#0f0d15"
-PANEL = "#171422"
-PANEL2 = "#1e192e"
-HEADER_BG = "#151229"
-LINE = "#2a2440"
-ACCENT = "#7c5cff"
-ACCENT_DARK = "#5e44d6"
-TEXT = "#eceaf2"
-MUTED = "#8a87a0"
-OK = "#38d99a"
-ERR = "#ff5c7a"
-WARN = "#ffb454"
+BG = "#0b1020"
+PANEL = "#121a2b"
+PANEL2 = "#19243a"
+HEADER_BG = "#101a30"
+LINE = "#293957"
+ACCENT = "#7657ff"
+ACCENT_DARK = "#5d43df"
+TEXT = "#f4f6ff"
+MUTED = "#a5b2cc"
+OK = "#35d6a2"
+ERR = "#ff6178"
+WARN = "#ffbd59"
 
 FONT = "Segoe UI"
 
@@ -44,10 +44,10 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("USB FIX")
-        w, h = 360, 560
+        w, h = 390, 620
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         self.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2 - 20}")
-        self.minsize(340, 520)
+        self.minsize(370, 590)
         self.withdraw()
         self.configure(fg_color=BG)
         self.api = Api(self._read_server())
@@ -64,12 +64,12 @@ class App(ctk.CTk):
         self.instance = self._load_instance()
         self.pc_name = self._pc_name()
         self._bg_tasks = queue.Queue()
-        self._font_title = ctk.CTkFont(family=FONT, size=19, weight="bold")
-        self._font_h1 = ctk.CTkFont(family=FONT, size=16, weight="bold")
-        self._font_h2 = ctk.CTkFont(family=FONT, size=13, weight="bold")
-        self._font_body = ctk.CTkFont(family=FONT, size=10)
-        self._font_small = ctk.CTkFont(family=FONT, size=9)
-        self._font_btn = ctk.CTkFont(family=FONT, size=10, weight="bold")
+        self._font_title = ctk.CTkFont(family=FONT, size=21, weight="bold")
+        self._font_h1 = ctk.CTkFont(family=FONT, size=18, weight="bold")
+        self._font_h2 = ctk.CTkFont(family=FONT, size=14, weight="bold")
+        self._font_body = ctk.CTkFont(family=FONT, size=11)
+        self._font_small = ctk.CTkFont(family=FONT, size=10)
+        self._font_btn = ctk.CTkFont(family=FONT, size=11, weight="bold")
         self._font_mono = ctk.CTkFont(family="Consolas", size=12)
 
         self._logo_img = None
@@ -192,16 +192,24 @@ class App(ctk.CTk):
         ctk.CTkFrame(parent, height=3, fg_color=ACCENT, corner_radius=0).pack(fill="x", side="top")
 
     def _add_update_label(self, parent):
-        lbl = ctk.CTkLabel(parent, text="", text_color=ACCENT,
-                           font=self._font_small, cursor="hand2")
-        lbl.pack(side="bottom", pady=(0, 6))
-        lbl.bind("<Button-1>", lambda e: self._do_update(lbl))
+        lbl = ctk.CTkButton(
+            parent, text="", command=lambda: self._do_update(lbl), height=36,
+            fg_color="#24365b", hover_color="#304875", text_color="#dce7ff",
+            font=self._font_small, corner_radius=10, cursor="hand2",
+            border_width=1, border_color="#3b5687"
+        )
+        lbl.pack_forget()
         return lbl
 
     def _set_update_text(self, text):
-        for w in (getattr(self, "update_login", None), self.update_portal):
+        for w in (getattr(self, "update_login", None), getattr(self, "update_portal", None)):
             if w and w.winfo_exists():
                 w.configure(text=text)
+                if text:
+                    if not w.winfo_manager():
+                        w.pack(side="bottom", fill="x", padx=22, pady=(0, 8))
+                else:
+                    w.pack_forget()
 
     def _check_update(self):
         if self._update_checked or self._updating:
@@ -218,13 +226,13 @@ class App(ctk.CTk):
         if not version or not url or not updater.newer(version):
             return
         self._update_data = {"version": version, "url": url}
-        self._set_update_text(f"★ Nova versão v{version} disponível — atualizar")
+        self._set_update_text(f"⬇  Atualização v{version} disponível  ·  ATUALIZAR")
 
     def _do_update(self, lbl=None):
         if self._updating or not self._update_data:
             return
         self._updating = True
-        self._set_update_text("Baixando atualização…")
+        self._set_update_text("Baixando nova versão… aguarde")
         self.bg(self._download_update, self._on_update_done)
 
     def _download_update(self):
@@ -237,16 +245,16 @@ class App(ctk.CTk):
     def _on_update_done(self, dest, err):
         if err:
             self._updating = False
-            self._set_update_text(f"⚠ Falha ao baixar atualização: {err}")
+            self._set_update_text(f"Falha no download: {err}")
             return
         self._updating = False
         if not self._confirm_update():
-            self._set_update_text(f"★ Atualização v{self._update_data['version']} disponível")
+            self._set_update_text(f"⬇  Atualização v{self._update_data['version']} disponível  ·  ATUALIZAR")
             return
         if updater.prepare_relaunch(dest):
             self.after(200, self._on_close)
         else:
-            self._set_update_text("Atualização baixada — reabra o app para concluir.")
+            self._set_update_text("Download concluído. Feche e abra o USB FIX para concluir.")
 
     def _confirm_update(self):
         if not updater.is_frozen():
@@ -603,10 +611,10 @@ class App(ctk.CTk):
         self.portal = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
         self._head_bar(self.portal, right_builder=self._pill_builder)
 
-        card = ctk.CTkFrame(self.portal, fg_color=PANEL, corner_radius=14, border_width=1, border_color=LINE)
-        card.pack(fill="both", expand=True, padx=22, pady=(18, 10))
+        card = ctk.CTkFrame(self.portal, fg_color=PANEL, corner_radius=18, border_width=1, border_color=LINE)
+        card.pack(fill="both", expand=True, padx=20, pady=(16, 10))
         inner = ctk.CTkFrame(card, fg_color=PANEL, corner_radius=0)
-        inner.pack(fill="both", expand=True, padx=18, pady=12)
+        inner.pack(fill="both", expand=True, padx=20, pady=16)
 
         self.key_lbl = ctk.CTkLabel(inner, text="", text_color=MUTED, font=self._font_small, anchor="w", height=18)
         self.key_lbl.pack(fill="x", pady=(0, 2))
@@ -651,7 +659,7 @@ class App(ctk.CTk):
 
         self.local_port_var = tk.StringVar(value=os.getenv("TUNNEL_LOCAL_PORT", "32038"))
 
-        self.btn_conn = ctk.CTkButton(inner, text="Conectar", command=self._toggle_connect, height=42,
+        self.btn_conn = ctk.CTkButton(inner, text="Conectar", command=self._toggle_connect, height=48,
                                       fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
                                       font=self._font_btn, corner_radius=10, cursor="hand2")
         self.btn_conn.pack(fill="x", pady=(0, 4))
@@ -670,11 +678,11 @@ class App(ctk.CTk):
 
         foot = ctk.CTkFrame(self.portal, fg_color="transparent", corner_radius=0)
         foot.pack(fill="x", padx=22)
-        self.btn_logout = ctk.CTkButton(foot, text="Sair", command=self._logout, width=88, height=34,
+        self.btn_logout = ctk.CTkButton(foot, text="Sair", command=self._logout, width=96, height=38,
                                         fg_color="#3a1520", hover_color="#4a1f2e", text_color=ERR,
                                         font=self._font_small, corner_radius=8, cursor="hand2")
         self.btn_logout.pack(side="left")
-        self.change_btn = ctk.CTkButton(foot, text="Atualizar", command=self._renew, width=110, height=34,
+        self.change_btn = ctk.CTkButton(foot, text="Atualizar", command=self._renew, width=120, height=38,
                                         fg_color=PANEL2, hover_color="#2a2440", text_color=TEXT,
                                         font=self._font_small, corner_radius=8, cursor="hand2")
         self.change_btn.pack(side="right")
@@ -683,7 +691,7 @@ class App(ctk.CTk):
                      font=self._font_small).pack(side="bottom", pady=(0, 8))
 
     def _pill_builder(self, row):
-        self.pill = ctk.CTkLabel(row, text="offline", text_color="#201500", fg_color=WARN,
+        self.pill = ctk.CTkLabel(row, text="offline", text_color="#30200a", fg_color=WARN,
                                  font=self._font_small, corner_radius=999, padx=12, height=26)
         self.pill.pack(side="right")
 
