@@ -93,15 +93,18 @@ jobs:
           VPS_HOST: ${{ secrets.USBFIX_HOST }}
           VPS_USER: ${{ secrets.USBFIX_USER }}
           VPS_PORT: ${{ secrets.USBFIX_PORT }}
+          RUN_ID: ${{ github.run_id }}
         run: |
+          set -euo pipefail
           mkdir -p ~/.ssh
           ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
-          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" 'test -d /opt/tunnel/server/site/downloads && test -w /opt/tunnel/server/site/downloads'
-          scp -P "$VPS_PORT" "dist/USB-Fix.exe" "dist/Instalar USB FIX.exe" "$VPS_USER@$VPS_HOST:/opt/tunnel/server/site/downloads/"
+          remote_dir="/opt/tunnel/server/site/downloads"
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "test -d '$remote_dir' && test -w '$remote_dir'"
+          scp -P "$VPS_PORT" "dist/USB-Fix.exe" "dist/Instalar USB FIX.exe" "$VPS_USER@$VPS_HOST:$remote_dir/"
           local_app="$(sha256sum "dist/USB-Fix.exe" | cut -d' ' -f1)"
-          remote_app="$(ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "sha256sum '/opt/tunnel/server/site/downloads/USB-Fix.exe' | cut -d' ' -f1")"
+          remote_app="$(ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "sha256sum '$remote_dir/USB-Fix.exe' | cut -d' ' -f1")"
           local_installer="$(sha256sum "dist/Instalar USB FIX.exe" | cut -d' ' -f1)"
-          remote_installer="$(ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "sha256sum '/opt/tunnel/server/site/downloads/Instalar USB FIX.exe' | cut -d' ' -f1")"
+          remote_installer="$(ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "sha256sum '$remote_dir/Instalar USB FIX.exe' | cut -d' ' -f1")"
           test "$local_app" = "$remote_app"
           test "$local_installer" = "$remote_installer"
           echo "USB-Fix.exe: SHA-256 confirmado"
