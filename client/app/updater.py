@@ -39,6 +39,37 @@ def new_binary_path():
     return current_exe().with_name(current_exe().name + ".new")
 
 
+def validate_binary(binary):
+    """Testa o executável novo antes de permitir a troca do aplicativo atual."""
+    binary = Path(binary)
+    test_exe = binary.with_name(f".{binary.stem}.validation.exe")
+    try:
+        shutil.copy2(binary, test_exe)
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        result = subprocess.run(
+            [str(test_exe), "--selftest"],
+            cwd=str(test_exe.parent),
+            capture_output=True,
+            text=True,
+            timeout=60,
+            creationflags=flags,
+        )
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip()
+            raise RuntimeError(
+                f"O novo executável não passou no teste de inicialização "
+                f"(código {result.returncode}). {detail}"
+            )
+        return True
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("O teste do novo executável excedeu 60 segundos.") from exc
+    finally:
+        try:
+            test_exe.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
 def download(url, dest, progress=None):
     if not dest.name.endswith(".new"):
         dest = dest.with_name(dest.name + ".new")
@@ -66,12 +97,14 @@ def download(url, dest, progress=None):
             if fh.read(2) != b"MZ":
                 raise IOError("O arquivo recebido não é um executável Windows válido.")
         shutil.move(str(part), str(dest))
+        validate_binary(dest)
         return dest
     except Exception:
-        try:
-            part.unlink(missing_ok=True)
-        except Exception:
-            pass
+        for temporary in (part, dest):
+            try:
+                temporary.unlink(missing_ok=True)
+            except Exception:
+                pass
         raise
 
 
