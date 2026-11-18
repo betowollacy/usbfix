@@ -58,6 +58,9 @@ class App(ctk.CTk):
         self._update_checked = False
         self._updating = False
         self._update_data = None
+        self._update_window = None
+        self._update_bar = None
+        self._update_status = None
         self._pass_entries = []
         self.save_login_var = tk.BooleanVar(value=True)
         self.show_pass_var = tk.BooleanVar(value=False)
@@ -211,6 +214,70 @@ class App(ctk.CTk):
                 else:
                     w.pack_forget()
 
+    def _show_update_progress(self, version):
+        if self._update_window and self._update_window.winfo_exists():
+            return
+        win = ctk.CTkToplevel(self)
+        win.title("Atualização do USB FIX")
+        win.configure(fg_color=BG)
+        win.resizable(False, False)
+        win.transient(self)
+        width, height = 360, 160
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        win.geometry(f"{width}x{height}+{(sw-width)//2}+{(sh-height)//2}")
+        win.protocol("WM_DELETE_WINDOW", lambda: None)
+        ctk.CTkLabel(win, text="Nova versão encontrada", text_color=TEXT,
+                     font=self._font_h2).pack(pady=(18, 5))
+        self._update_status = ctk.CTkLabel(
+            win, text=f"Preparando atualização v{version}…", text_color=MUTED,
+            font=self._font_small
+        )
+        self._update_status.pack(pady=(0, 12))
+        self._update_bar = ctk.CTkProgressBar(
+            win, width=290, height=9, fg_color=PANEL2,
+            progress_color=ACCENT, corner_radius=5
+        )
+        self._update_bar.pack(pady=(0, 8))
+        self._update_bar.set(0)
+        self._update_bar.configure(mode="indeterminate")
+        self._update_bar.start()
+        ctk.CTkLabel(win, text="Não desligue o computador durante a atualização.",
+                     text_color=MUTED, font=self._font_small).pack(pady=(2, 12))
+        self._update_window = win
+        win.lift()
+
+    def _set_update_stage(self, message, indeterminate=False):
+        win = self._update_window
+        if not win or not win.winfo_exists():
+            return
+        if self._update_status and self._update_status.winfo_exists():
+            self._update_status.configure(text=message)
+        if self._update_bar and self._update_bar.winfo_exists():
+            self._update_bar.stop()
+            if indeterminate:
+                self._update_bar.configure(mode="indeterminate")
+                self._update_bar.start()
+            else:
+                self._update_bar.configure(mode="determinate")
+                self._update_bar.set(0)
+
+    def _queue_update_progress(self, done, total):
+        self._bg_tasks.put(lambda: self._update_progress_ui(done, total))
+
+    def _update_progress_ui(self, done, total):
+        try:
+            if not self._update_window or not self._update_window.winfo_exists():
+                return
+            if self._update_bar and self._update_bar.winfo_exists():
+                self._update_bar.stop()
+                self._update_bar.configure(mode="determinate")
+                self._update_bar.set(min(1.0, done / total) if total else 0)
+            percent = int(done * 100 / total) if total else 0
+            if self._update_status and self._update_status.winfo_exists():
+                self._update_status.configure(text=f"Baixando atualização… {percent}%")
+        except Exception:
+            pass
+
     def _check_update(self):
         if self._update_checked or self._updating:
             return
@@ -227,6 +294,7 @@ class App(ctk.CTk):
             return
         self._update_data = {"version": version, "url": url}
         self._set_update_text(f"⬇  Nova versão v{version} encontrada. Atualizando automaticamente…")
+        self._show_update_progress(version)
         self._do_update()
 
     def _do_update(self, lbl=None):
@@ -234,6 +302,7 @@ class App(ctk.CTk):
             return
         self._updating = True
         self._set_update_text("Baixando nova versão… aguarde")
+        self._set_update_stage("Conectando ao servidor…", indeterminate=True)
         self.bg(self._download_update, self._on_update_done)
 
     def _download_update(self):
@@ -241,18 +310,25 @@ class App(ctk.CTk):
         if url.startswith("/"):
             url = self.api.base.rstrip("/") + url
         dest = updater.new_binary_path()
-        return updater.download(url, dest)
+        return updater.download(url, dest, progress=self._queue_update_progress)
 
     def _on_update_done(self, dest, err):
         if err:
             self._updating = False
             self._set_update_text(f"Falha no download: {err}")
+            self._set_update_stage(f"Falha na atualização: {err}", indeterminate=False)
             return
         self._updating = False
-        if updater.prepare_relaunch(dest):
-            self.after(200, self._on_close)
-        else:
-            self._set_update_text("Download concluído. Feche e abra o USB FIX para concluir.")
+        self._set_update_stage("Download validado. Reiniciando o USB FIX…", indeterminate=True)
+        try:
+            if updater.prepare_relaunch(dest):
+                self.after(700, self._on_close)
+            else:
+                self._set_update_stage("Atualização baixada e validada. Abra novamente para concluir.", indeterminate=False)
+                self._set_update_text("Download concluído. Feche e abra o USB FIX para concluir.")
+        except Exception as exc:
+            self._set_update_text(f"Falha ao reiniciar: {exc}")
+            self._set_update_stage(f"Falha ao reiniciar: {exc}", indeterminate=False)
 
     def _confirm_update(self):
         if not updater.is_frozen():
@@ -497,7 +573,6 @@ class App(ctk.CTk):
                                         checkmark_color="white", border_color=MUTED, text_color=MUTED,
                                         font=self._font_small, corner_radius=6, command=self._toggle_pass)
         self.chk_show.pack(fill="x", pady=(0, 14))
-
         self.btn_register = ctk.CTkButton(inner, text="CRIAR CONTA", command=self._do_register, height=50,
                                           fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
                                           font=self._font_btn, corner_radius=10, cursor="hand2")
@@ -747,8 +822,7 @@ class App(ctk.CTk):
                                          text_color=OK)
             else:
                 self.trial_lbl.configure(text=f"Ativo até {self._format_valid(u)} · trocas de nome: {u['changesLeft']}",
-                                         text_color=OK)
-        elif status == "pending":
+                                         text_color=OK)        elif status == "pending":
             self.trial_lbl.configure(text="⏳ Conta criada — aguardando liberação do vendedor.", text_color=WARN)
         elif status in ("blocked", "expired"):
             self.trial_lbl.configure(text="⚠ Conta suspensa — regularize com o fornecedor.", text_color=ERR)
