@@ -1,14 +1,29 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
-ctk_datas, ctk_binaries, ctk_hiddenimports = collect_all('customtkinter')
+ctk_datas, ctk_binaries, ctk_hiddenimports = collect_all("customtkinter")
+
+app_hiddenimports = [
+    "app.config",
+    "app.creds",
+    "app.gui",
+    "app.logo",
+    "app.redirector",
+    "app.api",
+    "app.tunnel",
+    "app.updater",
+]
 
 a = Analysis(
-    ['main.py'],
+    ["main.py"],
     pathex=[],
     binaries=ctk_binaries,
-    datas=[('frpc.exe', '.')] + ctk_datas,
-    hiddenimports=collect_submodules('app') + ctk_hiddenimports,
+    datas=[("frpc.exe", ".")] + ctk_datas,
+    hiddenimports=sorted(set(
+        collect_submodules("app")
+        + app_hiddenimports
+        + ctk_hiddenimports
+    )),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -24,7 +39,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='USB-Fix',
+    name="USB-Fix",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -37,5 +52,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='USB-Fix.ico',
+    icon="USB-Fix.ico",
 )
