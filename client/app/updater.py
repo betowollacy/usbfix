@@ -108,7 +108,7 @@ def prepare_relaunch(new_file):
         ":failed\r\n"
         "exit /b 1\r\n"
     ) % (name, name, backup.name, backup.name, name, name, backup.name, new_file.name, name,
-         name, backup.name, backup.name, name)
+         name, backup.name, backup.name, name, name)
     bat.write_text(body, encoding="ascii")
     subprocess.Popen(
         ["cmd", "/c", str(bat)],
