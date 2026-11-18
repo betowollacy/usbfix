@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: usbfix-download-publish
+  group: usbfix-download-publish-v2
   cancel-in-progress: true
 
 jobs:
