@@ -5,7 +5,7 @@ from pathlib import Path
 API_BASE = os.getenv("TUNNEL_API", "https://usbfix.site")
 APP_NAME = "USB FIX"
 APP_ID = "com.usbfix.app"
-VERSION = "0.6.4"
+VERSION = "0.6.5"
 
 DATA_DIR = Path(os.getenv("TUNNEL_DATA_DIR", Path(os.environ.get("APPDATA", Path.home())) / "USBFix"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
