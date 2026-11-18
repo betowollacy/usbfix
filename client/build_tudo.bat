@@ -7,6 +7,14 @@ python -m PyInstaller --noconfirm --clean USB-Fix.spec
 if errorlevel 1 goto :erro
 
 echo.
+echo === Testar inicializacao do executavel ===
+"dist\USB-Fix.exe" --selftest
+if errorlevel 1 (
+    echo ERRO: USB-Fix.exe falhou no teste de inicializacao. Instalador nao sera gerado.
+    goto :erro
+)
+
+echo.
 echo === Build instalador ===
 python -m PyInstaller --noconfirm --clean "Instalar USB FIX.spec"
 if errorlevel 1 goto :erro
