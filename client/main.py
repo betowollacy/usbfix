@@ -1,7 +1,9 @@
 import os
 import sys
 
-from app import config, gui
+from app import config
+from app.gui import main as run_gui
+
 
 if __name__ == "__main__":
     if "--selftest" in sys.argv:
@@ -15,4 +17,4 @@ if __name__ == "__main__":
         out = config.DATA_DIR / "selftest.txt"
         out.write_text("\n".join(lines), encoding="utf-8")
         sys.exit(0)
-    gui.main()
+    run_gui()
