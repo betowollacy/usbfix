@@ -14,11 +14,12 @@ permissions:
 
 concurrency:
   group: usbfix-download-publish
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - name: Baixar código
         uses: actions/checkout@v4
@@ -41,6 +42,7 @@ jobs:
       - name: Compilar aplicativo e instalador
         working-directory: client
         shell: cmd
+        timeout-minutes: 30
         run: build_tudo.bat
 
       - name: Validar arquivos gerados
