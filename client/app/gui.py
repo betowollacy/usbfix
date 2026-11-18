@@ -226,7 +226,8 @@ class App(ctk.CTk):
         if not version or not url or not updater.newer(version):
             return
         self._update_data = {"version": version, "url": url}
-        self._set_update_text(f"⬇  Atualização v{version} disponível  ·  ATUALIZAR")
+        self._set_update_text(f"⬇  Nova versão v{version} encontrada. Atualizando automaticamente…")
+        self._do_update()
 
     def _do_update(self, lbl=None):
         if self._updating or not self._update_data:
@@ -248,9 +249,6 @@ class App(ctk.CTk):
             self._set_update_text(f"Falha no download: {err}")
             return
         self._updating = False
-        if not self._confirm_update():
-            self._set_update_text(f"⬇  Atualização v{self._update_data['version']} disponível  ·  ATUALIZAR")
-            return
         if updater.prepare_relaunch(dest):
             self.after(200, self._on_close)
         else:
