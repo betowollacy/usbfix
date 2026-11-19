@@ -461,7 +461,9 @@ class App(ctk.CTk):
         ))
         try:
             if updater.prepare_relaunch(dest):
-                self.after(700, self._on_close)
+                # Fechar de forma determinística para que o bootloader onefile
+                # libere a pasta _MEI antes de o .bat iniciar o novo processo.
+                self.after(700, self._quit_for_update)
             else:
                 self._set_update_stage(
                     "Atualização baixada e validada. Abra novamente para concluir.",
@@ -1111,6 +1113,19 @@ class App(ctk.CTk):
             self._show_login()
             return
         self.bg(self.api.me, self._me_done, self.instance)
+
+    def _quit_for_update(self):
+        """Encerra o app após agendar a troca do executável durante o update."""
+        try:
+            self._hb_on = False
+            self.tunnel.stop()
+        except Exception:
+            pass
+        try:
+            self.destroy()
+        except Exception:
+            pass
+        os._exit(0)
 
     def _on_close(self):
         self._hb_on = False
