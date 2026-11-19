@@ -822,7 +822,8 @@ class App(ctk.CTk):
                                          text_color=OK)
             else:
                 self.trial_lbl.configure(text=f"Ativo até {self._format_valid(u)} · trocas de nome: {u['changesLeft']}",
-                                         text_color=OK)        elif status == "pending":
+                                         text_color=OK)
+        elif status == "pending":
             self.trial_lbl.configure(text="⏳ Conta criada — aguardando liberação do vendedor.", text_color=WARN)
         elif status in ("blocked", "expired"):
             self.trial_lbl.configure(text="⚠ Conta suspensa — regularize com o fornecedor.", text_color=ERR)
