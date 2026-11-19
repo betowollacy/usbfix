@@ -457,21 +457,17 @@ class App(ctk.CTk):
         self._updating = False
         self._set_update_stage("Validando o executável…", indeterminate=True, step=1)
         self.after(250, lambda: self._set_update_stage(
-            "Pronto. Reiniciando o USB FIX…", indeterminate=True, step=2
+            "Finalizando a instalação…", indeterminate=True, step=2
         ))
         try:
-            if updater.prepare_relaunch(dest):
-                # Fechar de forma determinística para que o bootloader onefile
-                # libere a pasta _MEI antes de o .bat iniciar o novo processo.
-                self.after(700, self._quit_for_update)
-            else:
-                self._set_update_stage(
-                    "Atualização baixada e validada. Abra novamente para concluir.",
-                    indeterminate=False, step=2,
-                )
-                self._set_update_text("Download concluído. Feche e abra o USB FIX para concluir.")
+            updater.prepare_relaunch(dest)
+            self._set_update_stage(
+                "Atualização instalada. Feche e abra o USB FIX para concluir.",
+                indeterminate=False, step=2,
+            )
+            self._set_update_text("Download concluído. Feche e abra o USB FIX para concluir.")
         except Exception as exc:
-            self._show_update_error(f"Falha ao reiniciar: {exc}")
+            self._show_update_error(f"Falha ao agendar a troca: {exc}")
 
     def _confirm_update(self):
         if not updater.is_frozen():
@@ -1113,19 +1109,6 @@ class App(ctk.CTk):
             self._show_login()
             return
         self.bg(self.api.me, self._me_done, self.instance)
-
-    def _quit_for_update(self):
-        """Encerra o app após agendar a troca do executável durante o update."""
-        try:
-            self._hb_on = False
-            self.tunnel.stop()
-        except Exception:
-            pass
-        try:
-            self.destroy()
-        except Exception:
-            pass
-        os._exit(0)
 
     def _on_close(self):
         self._hb_on = False
