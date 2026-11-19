@@ -1,4 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+import sys
+
+# Ensure PyInstaller and its hook helpers resolve the project's local "app"
+# package, not an unrelated package with the same name from site-packages.
+PROJECT_ROOT = os.path.abspath(os.path.dirname(SPEC))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 ctk_datas, ctk_binaries, ctk_hiddenimports = collect_all("customtkinter")
@@ -14,13 +23,17 @@ app_hiddenimports = [
     "app.updater",
 ]
 
+app_modules = collect_submodules("app", on_error="warn")
+if "app.gui" not in app_modules:
+    app_modules.append("app.gui")
+
 a = Analysis(
     ["main.py"],
-    pathex=[],
+    pathex=[PROJECT_ROOT],
     binaries=ctk_binaries,
     datas=[("frpc.exe", ".")] + ctk_datas,
     hiddenimports=sorted(set(
-        collect_submodules("app")
+        app_modules
         + app_hiddenimports
         + ctk_hiddenimports
     )),
