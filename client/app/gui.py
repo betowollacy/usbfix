@@ -18,18 +18,18 @@ from .config import API_BASE, APP_NAME, DATA_DIR, VERSION
 from .tunnel import Tunnel
 from . import updater
 
-BG = "#0b1020"
-PANEL = "#121a2b"
-PANEL2 = "#19243a"
-HEADER_BG = "#101a30"
-LINE = "#293957"
-ACCENT = "#7657ff"
-ACCENT_DARK = "#5d43df"
-TEXT = "#f4f6ff"
-MUTED = "#a5b2cc"
-OK = "#35d6a2"
-ERR = "#ff6178"
-WARN = "#ffbd59"
+BG = "#0a1220"
+PANEL = "#111c2e"
+PANEL2 = "#18263b"
+HEADER_BG = "#0d192b"
+LINE = "#2a3c55"
+ACCENT = "#4f8df7"
+ACCENT_DARK = "#3676df"
+TEXT = "#f3f6fc"
+MUTED = "#a8b6ca"
+OK = "#39c99a"
+ERR = "#f16b7c"
+WARN = "#e9b866"
 
 FONT = "Segoe UI"
 
@@ -67,12 +67,12 @@ class App(ctk.CTk):
         self.instance = self._load_instance()
         self.pc_name = self._pc_name()
         self._bg_tasks = queue.Queue()
-        self._font_title = ctk.CTkFont(family=FONT, size=21, weight="bold")
-        self._font_h1 = ctk.CTkFont(family=FONT, size=18, weight="bold")
+        self._font_title = ctk.CTkFont(family=FONT, size=22, weight="bold")
+        self._font_h1 = ctk.CTkFont(family=FONT, size=19, weight="bold")
         self._font_h2 = ctk.CTkFont(family=FONT, size=14, weight="bold")
-        self._font_body = ctk.CTkFont(family=FONT, size=11)
+        self._font_body = ctk.CTkFont(family=FONT, size=12)
         self._font_small = ctk.CTkFont(family=FONT, size=10)
-        self._font_btn = ctk.CTkFont(family=FONT, size=11, weight="bold")
+        self._font_btn = ctk.CTkFont(family=FONT, size=12, weight="bold")
         self._font_mono = ctk.CTkFont(family="Consolas", size=12)
 
         self._logo_img = None
