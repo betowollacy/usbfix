@@ -456,18 +456,63 @@ class App(ctk.CTk):
             return
         self._updating = False
         self._set_update_stage("Validando o executável…", indeterminate=True, step=1)
-        self.after(250, lambda: self._set_update_stage(
+        self.after(300, lambda: self._set_update_stage(
             "Finalizando a instalação…", indeterminate=True, step=2
         ))
         try:
             updater.prepare_relaunch(dest)
-            self._set_update_stage(
-                "Atualização instalada. Feche e abra o USB FIX para concluir.",
-                indeterminate=False, step=2,
-            )
-            self._set_update_text("Download concluído. Feche e abra o USB FIX para concluir.")
         except Exception as exc:
             self._show_update_error(f"Falha ao agendar a troca: {exc}")
+            return
+        self.after(900, self._finish_update)
+
+    def _finish_update(self):
+        """Conclui a barra, libera o fechamento da janela e encerra o app.
+
+        O .bat precisa que o processo termine para poder substituir o exe.
+        """
+        win = self._update_window
+        if win and win.winfo_exists():
+            try:
+                win.protocol("WM_DELETE_WINDOW", win.destroy)
+            except Exception:
+                pass
+        if self._update_bar and self._update_bar.winfo_exists():
+            self._update_bar.stop()
+            self._update_bar.configure(mode="determinate", progress_color=OK)
+            self._update_bar.set(1.0)
+        if self._update_pct and self._update_pct.winfo_exists():
+            self._update_pct.configure(text="100%", text_color=OK)
+        if self._update_status and self._update_status.winfo_exists():
+            self._update_status.configure(
+                text="Atualização instalada. O USB FIX vai fechar.", text_color=OK
+            )
+        self._set_update_step(3)
+        self._set_update_text("Atualização instalada. Abra o USB FIX pelo atalho.")
+        self.after(1300, self._close_update_window)
+        self.after(1700, self._quit_for_update)
+
+    def _close_update_window(self):
+        win = self._update_window
+        if win and win.winfo_exists():
+            try:
+                win.destroy()
+            except Exception:
+                pass
+        self._update_window = None
+
+    def _quit_for_update(self):
+        """Encerra o app para que o .bat possa trocar o executável."""
+        try:
+            self._hb_on = False
+            self.tunnel.stop()
+        except Exception:
+            pass
+        try:
+            self.destroy()
+        except Exception:
+            pass
+        os._exit(0)
 
     def _confirm_update(self):
         if not updater.is_frozen():
@@ -476,7 +521,7 @@ class App(ctk.CTk):
         return messagebox.askyesno(
             "USB FIX",
             f"Nova versão v{self._update_data['version']} baixada.\n\n"
-            "O app será fechado e reaberto automaticamente. Continuar?",
+            "O USB FIX será fechado. Abra novamente pelo atalho para usar a nova versão. Continuar?",
             parent=self,
         )
 
