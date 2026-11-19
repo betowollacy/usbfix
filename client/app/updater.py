@@ -173,6 +173,7 @@ def download(url, dest, progress=None, stage=None, sha256=None, retries=3):
 
 
 def prepare_relaunch(new_file):
+    """Agenda a substituição do exe. Não relança: o usuário abre manualmente."""
     if not is_frozen():
         return None
     target = current_exe()
@@ -192,24 +193,22 @@ def prepare_relaunch(new_file):
         "timeout /t 1 /nobreak >nul\r\n"
         "goto wait\r\n"
         ":replaced\r\n"
-        "rem Dar tempo ao bootloader onefile para liberar a pasta _MEI antiga.\r\n"
+        "rem Aguardar o bootloader onefile liberar a pasta _MEI antiga.\r\n"
         "timeout /t 2 /nobreak >nul\r\n"
         "if not exist \"%s\" goto failed\r\n"
         "if exist \"%s\" del /q \"%s\"\r\n"
         "if exist \"%s\" move /Y \"%s\" \"%s\" >nul\r\n"
         "move /Y \"%s\" \"%s\" >nul 2>&1\r\n"
         "if errorlevel 1 goto rollback\r\n"
-        "timeout /t 1 /nobreak >nul\r\n"
-        "start \"\" \"%%~dp0%s\"\r\n"
-        "start \"\" /b cmd /c \"timeout /t 5 /nobreak >nul & del /q \\\"_update_usbfix.bat\\\"\"\r\n"
+        "rem Nao relancar automaticamente: abrir manualmente evita conflito com a extracao _MEI.\r\n"
+        "start \"\" /b cmd /c \"timeout /t 3 /nobreak >nul & del /q _update_usbfix.bat\"\r\n"
         "exit /b 0\r\n"
         ":rollback\r\n"
         "if exist \"%s\" move /Y \"%s\" \"%s\" >nul\r\n"
-        "start \"\" \"%%~dp0%s\"\r\n"
         ":failed\r\n"
         "exit /b 1\r\n"
     ) % (name, name, new_file.name, backup.name, backup.name, name, name,
-         backup.name, new_file.name, name, name, backup.name, backup.name, name, name)
+         backup.name, new_file.name, name, backup.name, backup.name, name)
     bat.write_text(body, encoding="ascii")
     subprocess.Popen(
         ["cmd", "/c", str(bat)],
