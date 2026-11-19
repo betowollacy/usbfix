@@ -17,27 +17,34 @@ from .api import Api, ApiError
 from .config import API_BASE, APP_NAME, DATA_DIR, VERSION
 from .tunnel import Tunnel
 from . import updater
-
-BG = "#0a1220"
-PANEL = "#111c2e"
-PANEL2 = "#18263b"
-HEADER_BG = "#0d192b"
-LINE = "#2a3c55"
-ACCENT = "#4f8df7"
-ACCENT_DARK = "#3676df"
-TEXT = "#f3f6fc"
-MUTED = "#a8b6ca"
-OK = "#39c99a"
-ERR = "#f16b7c"
-WARN = "#e9b866"
-
-FONT = "Segoe UI"
+from .theme import (
+    ACCENT, ACCENT2, ACCENT_DARK, BG, BG_ELEV, ERR, FONT, GLOW, HEADER_BG,
+    LINE, LINE_SOFT, MUTED, OK, PANEL, PANEL2, SUBTLE, TEXT, WARN,
+    fonts, gradient_strip,
+)
 
 
 def _mix(c1, c2, t):
     a = [int(c1[i:i + 2], 16) for i in (1, 3, 5)]
     b = [int(c2[i:i + 2], 16) for i in (1, 3, 5)]
     return "#" + "".join(f"{round(a[i] + (b[i] - a[i]) * t):02x}" for i in range(3))
+
+
+def _fmt_bytes(value):
+    value = float(value or 0)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            return f"{value:.0f} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024
+
+
+def _fmt_speed(speed, eta):
+    if not speed:
+        return "—"
+    text = f"{_fmt_bytes(speed)}/s"
+    if eta and eta > 0:
+        text += f"  ·  ~{int(eta)} s"
+    return text
 
 
 class App(ctk.CTk):
@@ -61,19 +68,27 @@ class App(ctk.CTk):
         self._update_window = None
         self._update_bar = None
         self._update_status = None
+        self._update_pct = None
+        self._update_size = None
+        self._update_speed = None
+        self._update_steps = []
+        self._update_retry = None
         self._pass_entries = []
         self.save_login_var = tk.BooleanVar(value=True)
         self.show_pass_var = tk.BooleanVar(value=False)
         self.instance = self._load_instance()
         self.pc_name = self._pc_name()
         self._bg_tasks = queue.Queue()
-        self._font_title = ctk.CTkFont(family=FONT, size=22, weight="bold")
-        self._font_h1 = ctk.CTkFont(family=FONT, size=19, weight="bold")
-        self._font_h2 = ctk.CTkFont(family=FONT, size=14, weight="bold")
-        self._font_body = ctk.CTkFont(family=FONT, size=12)
-        self._font_small = ctk.CTkFont(family=FONT, size=10)
-        self._font_btn = ctk.CTkFont(family=FONT, size=12, weight="bold")
-        self._font_mono = ctk.CTkFont(family="Consolas", size=12)
+        _f = fonts()
+        self._font_title = _f["title"]
+        self._font_h1 = _f["h1"]
+        self._font_h2 = _f["h2"]
+        self._font_body = _f["body"]
+        self._font_small = _f["small"]
+        self._font_tiny = _f["tiny"]
+        self._font_btn = _f["btn"]
+        self._font_mono = _f["mono"]
+        self._font_percent = _f["percent"]
 
         self._logo_img = None
         self._avatar_logo = None
@@ -182,17 +197,22 @@ class App(ctk.CTk):
         return ctk.CTkLabel(parent, text="⚡", text_color=ACCENT, font=("Segoe UI", 24))
 
     def _head_bar(self, parent, right_builder=None):
+        gradient_strip(parent, height=3)
         bar = ctk.CTkFrame(parent, fg_color=HEADER_BG, corner_radius=0)
         bar.pack(fill="x", side="top")
+        ctk.CTkFrame(bar, height=1, fg_color=LINE_SOFT, corner_radius=0).pack(fill="x", side="bottom")
         row = ctk.CTkFrame(bar, fg_color=HEADER_BG, corner_radius=0)
-        row.pack(fill="x", padx=24, pady=(13, 13))
-        self._logo_pack(row).pack(side="left", padx=(0, 10))
-        ctk.CTkLabel(row, text="USB FIX", text_color=TEXT, font=self._font_h2).pack(side="left")
-        ctk.CTkLabel(row, text="acesso remoto USB", text_color=MUTED,
-                     font=self._font_small).pack(side="left", padx=(12, 0), pady=(5, 0))
+        row.pack(fill="x", padx=22, pady=(12, 11))
+        self._logo_pack(row).pack(side="left", padx=(0, 9))
+        brand = ctk.CTkFrame(row, fg_color="transparent")
+        brand.pack(side="left")
+        ctk.CTkLabel(brand, text="USB FIX", text_color=TEXT, font=self._font_h2,
+                     anchor="w").pack(side="top")
+        ctk.CTkLabel(brand, text="ACESSO REMOTO USB", text_color=SUBTLE,
+                     font=self._font_tiny, anchor="w").pack(side="top")
         if right_builder:
             right_builder(row)
-        ctk.CTkFrame(parent, height=3, fg_color=ACCENT, corner_radius=0).pack(fill="x", side="top")
+        return bar
 
     def _add_update_label(self, parent):
         lbl = ctk.CTkButton(
@@ -222,59 +242,112 @@ class App(ctk.CTk):
         win.configure(fg_color=BG)
         win.resizable(False, False)
         win.transient(self)
-        width, height = 410, 245
+        width, height = 440, 330
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         win.geometry(f"{width}x{height}+{(sw-width)//2}+{(sh-height)//2}")
         win.protocol("WM_DELETE_WINDOW", lambda: None)
+        gradient_strip(win, height=3)
 
-        ctk.CTkFrame(win, height=4, fg_color=ACCENT, corner_radius=0).pack(fill="x", side="top")
-        panel = ctk.CTkFrame(win, fg_color=BG, corner_radius=0)
-        panel.pack(fill="both", expand=True, padx=24, pady=18)
+        card = ctk.CTkFrame(win, fg_color=PANEL, corner_radius=16,
+                            border_width=1, border_color=LINE)
+        card.pack(fill="both", expand=True, padx=18, pady=(16, 18))
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="both", expand=True, padx=22, pady=18)
 
-        top = ctk.CTkFrame(panel, fg_color="transparent")
+        top = ctk.CTkFrame(inner, fg_color="transparent")
         top.pack(fill="x")
-        ctk.CTkLabel(top, text="◈", text_color=ACCENT,
-                     font=ctk.CTkFont(family=FONT, size=28, weight="bold")).pack(side="left", padx=(0, 10))
+        icon = ctk.CTkFrame(top, fg_color=PANEL2, corner_radius=12, width=44, height=44)
+        icon.pack(side="left", padx=(0, 12))
+        icon.pack_propagate(False)
+        ctk.CTkLabel(icon, text="⬆", text_color=ACCENT2,
+                     font=ctk.CTkFont(family=FONT, size=22, weight="bold")).place(relx=0.5, rely=0.5, anchor="center")
         title_box = ctk.CTkFrame(top, fg_color="transparent")
         title_box.pack(side="left", fill="x", expand=True)
-        ctk.CTkLabel(title_box, text="ATUALIZAÇÃO DO SISTEMA", text_color=TEXT,
-                     font=ctk.CTkFont(family=FONT, size=14, weight="bold"),
-                     anchor="w").pack(fill="x")
-        ctk.CTkLabel(title_box, text=f"USB FIX  •  NOVA VERSÃO v{version}",
-                     text_color=ACCENT, font=self._font_small, anchor="w").pack(fill="x", pady=(2, 0))
+        ctk.CTkLabel(title_box, text="ATUALIZANDO USB FIX", text_color=TEXT,
+                     font=self._font_h2, anchor="w").pack(fill="x")
+        ctk.CTkLabel(title_box, text=f"v{VERSION}  →  v{version}", text_color=ACCENT2,
+                     font=self._font_small, anchor="w").pack(fill="x", pady=(2, 0))
 
-        ctk.CTkFrame(panel, height=1, fg_color=LINE).pack(fill="x", pady=(15, 13))
-        self._update_status = ctk.CTkLabel(
-            panel, text="Preparando conexão segura…", text_color=MUTED,
-            font=self._font_body, anchor="w"
-        )
-        self._update_status.pack(fill="x", pady=(0, 10))
-        self._update_bar = ctk.CTkProgressBar(
-            panel, width=350, height=12, fg_color=PANEL2,
-            progress_color=ACCENT, corner_radius=6
-        )
-        self._update_bar.pack(fill="x", pady=(0, 8))
+        ctk.CTkFrame(inner, height=1, fg_color=LINE).pack(fill="x", pady=(16, 14))
+
+        main = ctk.CTkFrame(inner, fg_color="transparent")
+        main.pack(fill="x")
+        self._update_status = ctk.CTkLabel(main, text="Preparando conexão segura…",
+                                           text_color=MUTED, font=self._font_body, anchor="w")
+        self._update_status.pack(side="left", fill="x", expand=True)
+        self._update_pct = ctk.CTkLabel(main, text="0%", text_color=TEXT,
+                                        font=self._font_percent)
+        self._update_pct.pack(side="right")
+
+        self._update_bar = ctk.CTkProgressBar(inner, height=14, fg_color=PANEL2,
+                                              progress_color=ACCENT, corner_radius=7)
+        self._update_bar.pack(fill="x", pady=(12, 8))
         self._update_bar.set(0)
         self._update_bar.configure(mode="indeterminate")
         self._update_bar.start()
 
-        bottom = ctk.CTkFrame(panel, fg_color="transparent")
-        bottom.pack(fill="x", pady=(3, 0))
-        ctk.CTkLabel(bottom, text="DOWNLOAD  •  VERIFICAÇÃO  •  INSTALAÇÃO",
-                     text_color="#7182a6", font=self._font_small).pack(side="left")
-        ctk.CTkLabel(bottom, text="AUTO UPDATE", text_color=OK,
-                     font=self._font_small).pack(side="right")
+        detail = ctk.CTkFrame(inner, fg_color="transparent")
+        detail.pack(fill="x")
+        self._update_size = ctk.CTkLabel(detail, text="0 KB / —", text_color=SUBTLE,
+                                         font=self._font_small, anchor="w")
+        self._update_size.pack(side="left")
+        self._update_speed = ctk.CTkLabel(detail, text="—", text_color=SUBTLE,
+                                          font=self._font_small, anchor="e")
+        self._update_speed.pack(side="right")
+
+        steps = ctk.CTkFrame(inner, fg_color="transparent")
+        steps.pack(fill="x", pady=(18, 0))
+        self._update_steps = []
+        for i, label in enumerate(("DOWNLOAD", "VERIFICAÇÃO", "INSTALAÇÃO")):
+            chip = ctk.CTkLabel(steps, text=f"{i + 1:02d}  {label}", text_color=SUBTLE,
+                                font=self._font_tiny, corner_radius=8, fg_color=PANEL2,
+                                padx=10, height=26)
+            chip.pack(side="left", fill="x", expand=True, padx=(0, 6) if i < 2 else (0, 0))
+            self._update_steps.append(chip)
+        self._set_update_step(0)
+
+        self._update_retry = ctk.CTkButton(inner, text="Tentar novamente",
+                                           command=self._retry_update, height=32,
+                                           fg_color=PANEL2, hover_color=LINE,
+                                           text_color=TEXT, font=self._font_small,
+                                           corner_radius=8, cursor="hand2")
+        self._update_retry.pack(fill="x", pady=(12, 0))
+        self._update_retry.pack_forget()
+
         self._update_window = win
         win.lift()
 
-    def _set_update_stage(self, message, indeterminate=False):
+    def _set_update_step(self, index):
+        for i, chip in enumerate(getattr(self, "_update_steps", []) or []):
+            if not chip.winfo_exists():
+                continue
+            if i < index:
+                chip.configure(text_color=OK, fg_color=PANEL2)
+            elif i == index:
+                chip.configure(text_color=BG, fg_color=ACCENT2)
+            else:
+                chip.configure(text_color=SUBTLE, fg_color=PANEL2)
+
+    def _queue_update_stage(self, message):
+        self._bg_tasks.put(lambda: self._set_update_stage(message, indeterminate=True))
+
+    def _set_update_stage(self, message, indeterminate=False, step=None):
+        if step is not None:
+            self._set_update_step(step)
         win = self._update_window
         if not win or not win.winfo_exists():
             return
         if self._update_status and self._update_status.winfo_exists():
-            self._update_status.configure(text=message)
+            self._update_status.configure(text=message, text_color=MUTED)
+        if indeterminate and ("Conectando" in message or "tentativa" in message):
+            for widget, text in ((self._update_pct, "0%"),
+                                 (self._update_size, "0 KB / —"),
+                                 (self._update_speed, "—")):
+                if widget and widget.winfo_exists():
+                    widget.configure(text=text)
         if self._update_bar and self._update_bar.winfo_exists():
             self._update_bar.stop()
+            self._update_bar.configure(progress_color=ACCENT)
             if indeterminate:
                 self._update_bar.configure(mode="indeterminate")
                 self._update_bar.start()
@@ -282,22 +355,50 @@ class App(ctk.CTk):
                 self._update_bar.configure(mode="determinate")
                 self._update_bar.set(0)
 
-    def _queue_update_progress(self, done, total):
-        self._bg_tasks.put(lambda: self._update_progress_ui(done, total))
+    def _queue_update_progress(self, done, total, speed=0.0, eta=0.0):
+        self._bg_tasks.put(lambda: self._update_progress_ui(done, total, speed, eta))
 
-    def _update_progress_ui(self, done, total):
+    def _update_progress_ui(self, done, total, speed=0.0, eta=0.0):
         try:
             if not self._update_window or not self._update_window.winfo_exists():
                 return
+            fraction = min(1.0, done / total) if total else 0.0
+            percent = int(fraction * 100)
             if self._update_bar and self._update_bar.winfo_exists():
                 self._update_bar.stop()
-                self._update_bar.configure(mode="determinate")
-                self._update_bar.set(min(1.0, done / total) if total else 0)
-            percent = int(done * 100 / total) if total else 0
+                self._update_bar.configure(mode="determinate", progress_color=ACCENT)
+                self._update_bar.set(fraction)
+            if self._update_pct and self._update_pct.winfo_exists():
+                self._update_pct.configure(text=f"{percent}%")
+            if self._update_size and self._update_size.winfo_exists():
+                self._update_size.configure(
+                    text=f"{_fmt_bytes(done)} / {_fmt_bytes(total) if total else '—'}"
+                )
+            if self._update_speed and self._update_speed.winfo_exists():
+                self._update_speed.configure(text=_fmt_speed(speed, eta))
             if self._update_status and self._update_status.winfo_exists():
-                self._update_status.configure(text=f"Baixando atualização… {percent}%")
+                self._update_status.configure(text="Baixando a nova versão…", text_color=MUTED)
+            self._set_update_step(0)
         except Exception:
             pass
+
+    def _show_update_error(self, message):
+        self._updating = False
+        self._set_update_text(f"Falha na atualização: {message}")
+        win = self._update_window
+        if win and win.winfo_exists():
+            if self._update_status and self._update_status.winfo_exists():
+                self._update_status.configure(text=message, text_color=ERR)
+            if self._update_bar and self._update_bar.winfo_exists():
+                self._update_bar.stop()
+                self._update_bar.configure(mode="determinate", progress_color=ERR)
+            if getattr(self, "_update_retry", None) and self._update_retry.winfo_exists():
+                self._update_retry.pack(fill="x", pady=(12, 0))
+
+    def _retry_update(self):
+        if getattr(self, "_update_retry", None) and self._update_retry.winfo_exists():
+            self._update_retry.pack_forget()
+        self._do_update()
 
     def _check_update(self):
         if self._update_checked or self._updating:
@@ -313,7 +414,11 @@ class App(ctk.CTk):
         url = (app.get("url") or "").strip()
         if not version or not url or not updater.newer(version):
             return
-        self._update_data = {"version": version, "url": url}
+        self._update_data = {
+            "version": version,
+            "url": url,
+            "sha256": (app.get("sha256") or app.get("hash") or "").strip(),
+        }
         self._set_update_text(f"⬇  Nova versão v{version} encontrada. Atualizando automaticamente…")
         self._show_update_progress(version)
         self._do_update()
@@ -323,7 +428,13 @@ class App(ctk.CTk):
             return
         self._updating = True
         self._set_update_text("Baixando nova versão… aguarde")
-        self._set_update_stage("Conectando ao servidor…", indeterminate=True)
+        if self._update_pct and self._update_pct.winfo_exists():
+            self._update_pct.configure(text="0%")
+        if self._update_size and self._update_size.winfo_exists():
+            self._update_size.configure(text="0 KB / —")
+        if self._update_speed and self._update_speed.winfo_exists():
+            self._update_speed.configure(text="—")
+        self._set_update_stage("Conectando ao servidor…", indeterminate=True, step=0)
         self.bg(self._download_update, self._on_update_done)
 
     def _download_update(self):
@@ -331,25 +442,34 @@ class App(ctk.CTk):
         if url.startswith("/"):
             url = self.api.base.rstrip("/") + url
         dest = updater.new_binary_path()
-        return updater.download(url, dest, progress=self._queue_update_progress)
+        return updater.download(
+            url,
+            dest,
+            progress=self._queue_update_progress,
+            stage=self._queue_update_stage,
+            sha256=self._update_data.get("sha256"),
+        )
 
     def _on_update_done(self, dest, err):
         if err:
-            self._updating = False
-            self._set_update_text(f"Falha no download: {err}")
-            self._set_update_stage(f"Falha na atualização: {err}", indeterminate=False)
+            self._show_update_error(str(err))
             return
         self._updating = False
-        self._set_update_stage("Download validado. Reiniciando o USB FIX…", indeterminate=True)
+        self._set_update_stage("Validando o executável…", indeterminate=True, step=1)
+        self.after(250, lambda: self._set_update_stage(
+            "Pronto. Reiniciando o USB FIX…", indeterminate=True, step=2
+        ))
         try:
             if updater.prepare_relaunch(dest):
                 self.after(700, self._on_close)
             else:
-                self._set_update_stage("Atualização baixada e validada. Abra novamente para concluir.", indeterminate=False)
+                self._set_update_stage(
+                    "Atualização baixada e validada. Abra novamente para concluir.",
+                    indeterminate=False, step=2,
+                )
                 self._set_update_text("Download concluído. Feche e abra o USB FIX para concluir.")
         except Exception as exc:
-            self._set_update_text(f"Falha ao reiniciar: {exc}")
-            self._set_update_stage(f"Falha ao reiniciar: {exc}", indeterminate=False)
+            self._show_update_error(f"Falha ao reiniciar: {exc}")
 
     def _confirm_update(self):
         if not updater.is_frozen():
@@ -433,22 +553,25 @@ class App(ctk.CTk):
         w, h = 390, 250
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         self.splash_win.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2 - 30}")
-        body = ctk.CTkFrame(self.splash_win, fg_color=BG, corner_radius=0)
-        body.pack(fill="both", expand=True)
-        ctk.CTkFrame(self.splash_win, height=4, fg_color=ACCENT, corner_radius=0).pack(fill="x", side="top")
-        ctk.CTkFrame(body, height=52, fg_color=HEADER_BG, corner_radius=0).pack(fill="x", side="top")
+        gradient_strip(self.splash_win, height=3)
+        body = ctk.CTkFrame(self.splash_win, fg_color=PANEL, corner_radius=16,
+                            border_width=1, border_color=LINE)
+        body.pack(fill="both", expand=True, padx=12, pady=(12, 12))
+        ctk.CTkFrame(body, height=44, fg_color="transparent").pack(fill="x", side="top")
         if self._splash_logo:
-            ctk.CTkLabel(body, text="", image=self._splash_logo, fg_color="transparent").pack(pady=(6, 0))
+            ctk.CTkLabel(body, text="", image=self._splash_logo, fg_color="transparent").pack(pady=(2, 0))
         else:
-            ctk.CTkLabel(body, text="⚡", text_color=ACCENT, font=("Segoe UI", 26)).pack(pady=(8, 0))
-        ctk.CTkLabel(body, text=APP_NAME, text_color=TEXT, font=ctk.CTkFont(family=FONT, size=26, weight="bold")).pack(pady=(6, 0))
-        ctk.CTkLabel(body, text="USB remoto por assinatura", text_color=MUTED,
-                     font=self._font_small).pack(pady=(2, 14))
-        self.spinner = ctk.CTkProgressBar(body, mode="indeterminate", width=150, height=6,
-                                          fg_color=PANEL2, progress_color=ACCENT, corner_radius=3)
+            ctk.CTkLabel(body, text="⚡", text_color=ACCENT2, font=("Segoe UI", 26)).pack(pady=(4, 0))
+        ctk.CTkLabel(body, text=APP_NAME, text_color=TEXT, font=self._font_title).pack(pady=(6, 0))
+        ctk.CTkLabel(body, text="USB REMOTO POR ASSINATURA", text_color=SUBTLE,
+                     font=self._font_tiny).pack(pady=(2, 16))
+        self.spinner = ctk.CTkProgressBar(body, mode="indeterminate", width=170, height=6,
+                                          fg_color=PANEL2, progress_color=ACCENT2, corner_radius=3)
         self.spinner.pack()
-        ctk.CTkLabel(body, text=f"v{VERSION}", text_color="#5a5670",
-                     font=self._font_small).pack(side="bottom", pady=(0, 12))
+        version_chip = ctk.CTkLabel(body, text=f"v{VERSION}", text_color=ACCENT2,
+                                    font=self._font_small, fg_color=PANEL2,
+                                    corner_radius=10, padx=12)
+        version_chip.pack(side="bottom", pady=(0, 14))
         self.splash_win.protocol("WM_DELETE_WINDOW", lambda: None)
 
     def _draw_spinner(self):
@@ -496,8 +619,8 @@ class App(ctk.CTk):
         frame.pack_propagate(False)
         cv = tk.Canvas(frame, width=84, height=84, bg=PANEL, highlightthickness=0, bd=0)
         cv.pack(fill="both", expand=True)
-        cv.create_oval(1, 1, 83, 83, outline=ACCENT, width=3)
-        cv.create_oval(6, 6, 78, 78, outline="#332a5c", width=1)
+        cv.create_oval(1, 1, 83, 83, outline=ACCENT2, width=3)
+        cv.create_oval(6, 6, 78, 78, outline=GLOW, width=1)
         if self._avatar_logo:
             ctk.CTkLabel(frame, text="", image=self._avatar_logo, fg_color="transparent"
                          ).place(relx=0.5, rely=0.5, anchor="center")
@@ -521,11 +644,11 @@ class App(ctk.CTk):
 
     def _center_card(self, parent, width, height, pad_top=40):
         area = self._gradient_area(parent)
-        shadow = ctk.CTkFrame(area, fg_color="#07060b", corner_radius=18,
+        shadow = ctk.CTkFrame(area, fg_color="#03060D", corner_radius=20,
                               width=width + 10, height=height + 10)
-        shadow.place(relx=0.5, rely=0.5, x=2, y=5, anchor="center")
-        card = ctk.CTkFrame(area, fg_color=PANEL, corner_radius=16,
-                            border_width=1, border_color="#251f3a",
+        shadow.place(relx=0.5, rely=0.5, x=2, y=6, anchor="center")
+        card = ctk.CTkFrame(area, fg_color=PANEL, corner_radius=18,
+                            border_width=1, border_color=LINE,
                             width=width, height=height)
         card.pack_propagate(False)
         card.place(relx=0.5, rely=0.5, anchor="center")
@@ -537,8 +660,11 @@ class App(ctk.CTk):
         self.login = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
         self._head_bar(self.login)
         _, inner = self._center_card(self.login, 326, 430, pad_top=54)
-        self._model_avatar(inner).pack(pady=(0, 6))
-        ctk.CTkLabel(inner, text="USB FIX", text_color=TEXT, font=self._font_h1).pack(pady=(0, 14))
+        self._model_avatar(inner).pack(pady=(0, 4))
+        ctk.CTkLabel(inner, text="ACESSO SEGURO", text_color=ACCENT2,
+                     font=self._font_tiny).pack()
+        ctk.CTkLabel(inner, text="Bem-vindo de volta", text_color=TEXT,
+                     font=self._font_h1).pack(pady=(2, 12))
 
         self.login_err = ctk.CTkLabel(inner, text="", text_color=ERR, font=self._font_small,
                                       wraplength=274, justify="left", height=18)
@@ -671,7 +797,7 @@ class App(ctk.CTk):
         row = ctk.CTkFrame(self.server_dialog, fg_color=BG, corner_radius=0)
         row.pack(padx=16, pady=(0, 14), fill="x")
         ctk.CTkButton(row, text="Cancelar", command=self.server_dialog.withdraw, width=110,
-                      fg_color=PANEL2, hover_color="#2a2440", text_color=TEXT,
+                      fg_color=PANEL2, hover_color=LINE, text_color=TEXT,
                       font=self._font_small, corner_radius=8).pack(side="left")
         ctk.CTkButton(row, text="Salvar e reconectar", command=self._save_server_dialog, width=160,
                       fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
@@ -777,15 +903,15 @@ class App(ctk.CTk):
                                         font=self._font_small, corner_radius=8, cursor="hand2")
         self.btn_logout.pack(side="left")
         self.change_btn = ctk.CTkButton(foot, text="Sincronizar", command=self._renew, width=120, height=38,
-                                        fg_color=PANEL2, hover_color="#2a2440", text_color=TEXT,
+                                        fg_color=PANEL2, hover_color=LINE, text_color=TEXT,
                                         font=self._font_small, corner_radius=8, cursor="hand2")
         self.change_btn.pack(side="right")
         self.update_portal = self._add_update_label(self.portal)
-        ctk.CTkLabel(self.portal, text=f"USB FIX v{VERSION}", text_color="#5a5670",
+        ctk.CTkLabel(self.portal, text=f"USB FIX v{VERSION}", text_color=SUBTLE,
                      font=self._font_small).pack(side="bottom", pady=(0, 8))
 
     def _pill_builder(self, row):
-        self.pill = ctk.CTkLabel(row, text="offline", text_color="#30200a", fg_color=WARN,
+        self.pill = ctk.CTkLabel(row, text="offline", text_color=BG, fg_color=WARN,
                                  font=self._font_small, corner_radius=999, padx=12, height=26)
         self.pill.pack(side="right")
 
@@ -960,7 +1086,7 @@ class App(ctk.CTk):
         elif self.user and self.user.get("status") in ("blocked", "expired", "unused", "pending"):
             self.pill.configure(text="suspensa", text_color="white", fg_color=ERR)
         else:
-            self.pill.configure(text="offline", text_color="#201500", fg_color=WARN)
+            self.pill.configure(text="offline", text_color=BG, fg_color=WARN)
             if self.user and self.user.get("endpoint"):
                 self.endpoint_lbl.configure(text=f"{self.user['endpoint']}:{self.user.get('port')}",
                                             text_color=TEXT)
