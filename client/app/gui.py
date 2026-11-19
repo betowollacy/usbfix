@@ -218,31 +218,52 @@ class App(ctk.CTk):
         if self._update_window and self._update_window.winfo_exists():
             return
         win = ctk.CTkToplevel(self)
-        win.title("Atualização do USB FIX")
+        win.title("USB FIX | Atualização")
         win.configure(fg_color=BG)
         win.resizable(False, False)
         win.transient(self)
-        width, height = 360, 160
+        width, height = 410, 245
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         win.geometry(f"{width}x{height}+{(sw-width)//2}+{(sh-height)//2}")
         win.protocol("WM_DELETE_WINDOW", lambda: None)
-        ctk.CTkLabel(win, text="Nova versão encontrada", text_color=TEXT,
-                     font=self._font_h2).pack(pady=(18, 5))
+
+        ctk.CTkFrame(win, height=4, fg_color=ACCENT, corner_radius=0).pack(fill="x", side="top")
+        panel = ctk.CTkFrame(win, fg_color=BG, corner_radius=0)
+        panel.pack(fill="both", expand=True, padx=24, pady=18)
+
+        top = ctk.CTkFrame(panel, fg_color="transparent")
+        top.pack(fill="x")
+        ctk.CTkLabel(top, text="◈", text_color=ACCENT,
+                     font=ctk.CTkFont(family=FONT, size=28, weight="bold")).pack(side="left", padx=(0, 10))
+        title_box = ctk.CTkFrame(top, fg_color="transparent")
+        title_box.pack(side="left", fill="x", expand=True)
+        ctk.CTkLabel(title_box, text="ATUALIZAÇÃO DO SISTEMA", text_color=TEXT,
+                     font=ctk.CTkFont(family=FONT, size=14, weight="bold"),
+                     anchor="w").pack(fill="x")
+        ctk.CTkLabel(title_box, text=f"USB FIX  •  NOVA VERSÃO v{version}",
+                     text_color=ACCENT, font=self._font_small, anchor="w").pack(fill="x", pady=(2, 0))
+
+        ctk.CTkFrame(panel, height=1, fg_color=LINE).pack(fill="x", pady=(15, 13))
         self._update_status = ctk.CTkLabel(
-            win, text=f"Preparando atualização v{version}…", text_color=MUTED,
-            font=self._font_small
+            panel, text="Preparando conexão segura…", text_color=MUTED,
+            font=self._font_body, anchor="w"
         )
-        self._update_status.pack(pady=(0, 12))
+        self._update_status.pack(fill="x", pady=(0, 10))
         self._update_bar = ctk.CTkProgressBar(
-            win, width=290, height=9, fg_color=PANEL2,
-            progress_color=ACCENT, corner_radius=5
+            panel, width=350, height=12, fg_color=PANEL2,
+            progress_color=ACCENT, corner_radius=6
         )
-        self._update_bar.pack(pady=(0, 8))
+        self._update_bar.pack(fill="x", pady=(0, 8))
         self._update_bar.set(0)
         self._update_bar.configure(mode="indeterminate")
         self._update_bar.start()
-        ctk.CTkLabel(win, text="Não desligue o computador durante a atualização.",
-                     text_color=MUTED, font=self._font_small).pack(pady=(2, 12))
+
+        bottom = ctk.CTkFrame(panel, fg_color="transparent")
+        bottom.pack(fill="x", pady=(3, 0))
+        ctk.CTkLabel(bottom, text="DOWNLOAD  •  VERIFICAÇÃO  •  INSTALAÇÃO",
+                     text_color="#7182a6", font=self._font_small).pack(side="left")
+        ctk.CTkLabel(bottom, text="AUTO UPDATE", text_color=OK,
+                     font=self._font_small).pack(side="right")
         self._update_window = win
         win.lift()
 
@@ -755,7 +776,7 @@ class App(ctk.CTk):
                                         fg_color="#3a1520", hover_color="#4a1f2e", text_color=ERR,
                                         font=self._font_small, corner_radius=8, cursor="hand2")
         self.btn_logout.pack(side="left")
-        self.change_btn = ctk.CTkButton(foot, text="Atualizar", command=self._renew, width=120, height=38,
+        self.change_btn = ctk.CTkButton(foot, text="Sincronizar", command=self._renew, width=120, height=38,
                                         fg_color=PANEL2, hover_color="#2a2440", text_color=TEXT,
                                         font=self._font_small, corner_radius=8, cursor="hand2")
         self.change_btn.pack(side="right")
