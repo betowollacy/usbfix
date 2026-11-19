@@ -18,9 +18,9 @@ from .config import API_BASE, APP_NAME, DATA_DIR, VERSION
 from .tunnel import Tunnel
 from . import updater
 from .theme import (
-    ACCENT, ACCENT2, ACCENT_DARK, BG, BG_ELEV, ERR, FONT, GLOW, HEADER_BG,
-    LINE, LINE_SOFT, MUTED, OK, PANEL, PANEL2, SUBTLE, TEXT, WARN,
-    fonts, gradient_strip,
+    ACCENT, ACCENT2, ACCENT_DARK, BG, BG_ELEV, BORDER, BORDER_SOFT, ERR,
+    FONT, GLOW, HEADER_BG, LINE, LINE_SOFT, MUTED, OK, PANEL, PANEL2,
+    SUBTLE, TEXT, WARN, fonts, gradient_strip,
 )
 
 
@@ -194,13 +194,13 @@ class App(ctk.CTk):
     def _logo_pack(self, parent):
         if self._logo_img:
             return ctk.CTkLabel(parent, text="", image=self._logo_img, fg_color="transparent")
-        return ctk.CTkLabel(parent, text="⚡", text_color=ACCENT, font=("Segoe UI", 24))
+        return ctk.CTkLabel(parent, text="⚡", text_color=ACCENT2, font=("Segoe UI", 24))
 
     def _head_bar(self, parent, right_builder=None):
-        gradient_strip(parent, height=3)
+        gradient_strip(parent, height=5)
         bar = ctk.CTkFrame(parent, fg_color=HEADER_BG, corner_radius=0)
         bar.pack(fill="x", side="top")
-        ctk.CTkFrame(bar, height=1, fg_color=LINE_SOFT, corner_radius=0).pack(fill="x", side="bottom")
+        ctk.CTkFrame(bar, height=1, fg_color=BORDER_SOFT, corner_radius=0).pack(fill="x", side="bottom")
         row = ctk.CTkFrame(bar, fg_color=HEADER_BG, corner_radius=0)
         row.pack(fill="x", padx=22, pady=(12, 11))
         self._logo_pack(row).pack(side="left", padx=(0, 9))
@@ -217,9 +217,9 @@ class App(ctk.CTk):
     def _add_update_label(self, parent):
         lbl = ctk.CTkButton(
             parent, text="", command=lambda: self._do_update(lbl), height=36,
-            fg_color="#24365b", hover_color="#304875", text_color="#dce7ff",
+            fg_color="#102A45", hover_color="#174A6B", text_color="#7DEBFF",
             font=self._font_small, corner_radius=10, cursor="hand2",
-            border_width=1, border_color="#3b5687"
+            border_width=1, border_color=BORDER
         )
         lbl.pack_forget()
         return lbl
@@ -246,10 +246,10 @@ class App(ctk.CTk):
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         win.geometry(f"{width}x{height}+{(sw-width)//2}+{(sh-height)//2}")
         win.protocol("WM_DELETE_WINDOW", lambda: None)
-        gradient_strip(win, height=3)
+        gradient_strip(win, height=5)
 
         card = ctk.CTkFrame(win, fg_color=PANEL, corner_radius=16,
-                            border_width=1, border_color=LINE)
+                            border_width=1, border_color=BORDER)
         card.pack(fill="both", expand=True, padx=18, pady=(16, 18))
         inner = ctk.CTkFrame(card, fg_color="transparent")
         inner.pack(fill="both", expand=True, padx=22, pady=18)
@@ -268,7 +268,7 @@ class App(ctk.CTk):
         ctk.CTkLabel(title_box, text=f"v{VERSION}  →  v{version}", text_color=ACCENT2,
                      font=self._font_small, anchor="w").pack(fill="x", pady=(2, 0))
 
-        ctk.CTkFrame(inner, height=1, fg_color=LINE).pack(fill="x", pady=(16, 14))
+        ctk.CTkFrame(inner, height=1, fg_color=BORDER_SOFT).pack(fill="x", pady=(16, 14))
 
         main = ctk.CTkFrame(inner, fg_color="transparent")
         main.pack(fill="x")
@@ -280,7 +280,7 @@ class App(ctk.CTk):
         self._update_pct.pack(side="right")
 
         self._update_bar = ctk.CTkProgressBar(inner, height=14, fg_color=PANEL2,
-                                              progress_color=ACCENT, corner_radius=7)
+                                              progress_color=ACCENT2, corner_radius=7)
         self._update_bar.pack(fill="x", pady=(12, 8))
         self._update_bar.set(0)
         self._update_bar.configure(mode="indeterminate")
@@ -308,7 +308,7 @@ class App(ctk.CTk):
 
         self._update_retry = ctk.CTkButton(inner, text="Tentar novamente",
                                            command=self._retry_update, height=32,
-                                           fg_color=PANEL2, hover_color=LINE,
+                                           fg_color=PANEL2, hover_color=BORDER,
                                            text_color=TEXT, font=self._font_small,
                                            corner_radius=8, cursor="hand2")
         self._update_retry.pack(fill="x", pady=(12, 0))
@@ -324,7 +324,7 @@ class App(ctk.CTk):
             if i < index:
                 chip.configure(text_color=OK, fg_color=PANEL2)
             elif i == index:
-                chip.configure(text_color=BG, fg_color=ACCENT2)
+                chip.configure(text_color="#04121F", fg_color=ACCENT2)
             else:
                 chip.configure(text_color=SUBTLE, fg_color=PANEL2)
 
@@ -551,9 +551,9 @@ class App(ctk.CTk):
         w, h = 390, 250
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         self.splash_win.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2 - 30}")
-        gradient_strip(self.splash_win, height=3)
+        gradient_strip(self.splash_win, height=5)
         body = ctk.CTkFrame(self.splash_win, fg_color=PANEL, corner_radius=16,
-                            border_width=1, border_color=LINE)
+                            border_width=1, border_color=BORDER)
         body.pack(fill="both", expand=True, padx=12, pady=(12, 12))
         ctk.CTkFrame(body, height=44, fg_color="transparent").pack(fill="x", side="top")
         if self._splash_logo:
@@ -586,7 +586,7 @@ class App(ctk.CTk):
         return ctk.CTkLabel(parent, text=text, **defaults)
 
     def _entry(self, parent, show=None, **kw):
-        defaults = dict(fg_color=PANEL2, border_color=LINE, border_width=1,
+        defaults = dict(fg_color=PANEL2, border_color=BORDER, border_width=1,
                         text_color=TEXT, font=self._font_body, corner_radius=8)
         defaults.update(kw)
         if show:
@@ -606,7 +606,7 @@ class App(ctk.CTk):
                 return
             steps = max(2, min(h, 256))
             for i in range(steps):
-                color = _mix(HEADER_BG, BG, i / (steps - 1))
+                color = _mix("#08213A", BG, i / (steps - 1))
                 cv.create_line(0, i, w, i, fill=color, tags="grad")
 
         cv.bind("<Configure>", redraw)
@@ -626,12 +626,12 @@ class App(ctk.CTk):
 
     def _model_input(self, parent, icon, placeholder, show=None):
         box = ctk.CTkFrame(parent, fg_color=PANEL2, corner_radius=8, border_width=1,
-                           border_color=LINE, height=44)
+                           border_color=BORDER, height=44)
         box.pack_propagate(False)
         box.pack(fill="x", pady=(0, 6))
         ctk.CTkLabel(box, text=icon, text_color=MUTED, font=("Segoe UI Symbol", 14),
                      width=48).pack(side="left")
-        ctk.CTkFrame(box, width=1, fg_color=LINE).pack(side="left", fill="y", pady=9)
+        ctk.CTkFrame(box, width=1, fg_color=BORDER_SOFT).pack(side="left", fill="y", pady=9)
         entry = ctk.CTkEntry(box, fg_color="transparent", border_width=0, text_color=TEXT,
                              placeholder_text=placeholder, placeholder_text_color=MUTED,
                              font=self._font_body)
@@ -642,11 +642,11 @@ class App(ctk.CTk):
 
     def _center_card(self, parent, width, height, pad_top=40):
         area = self._gradient_area(parent)
-        shadow = ctk.CTkFrame(area, fg_color="#03060D", corner_radius=20,
+        shadow = ctk.CTkFrame(area, fg_color="#000208", corner_radius=20,
                               width=width + 10, height=height + 10)
         shadow.place(relx=0.5, rely=0.5, x=2, y=6, anchor="center")
         card = ctk.CTkFrame(area, fg_color=PANEL, corner_radius=18,
-                            border_width=1, border_color=LINE,
+                            border_width=1, border_color=BORDER,
                             width=width, height=height)
         card.pack_propagate(False)
         card.place(relx=0.5, rely=0.5, anchor="center")
@@ -690,10 +690,11 @@ class App(ctk.CTk):
 
         self.btn_login = ctk.CTkButton(inner, text="ENTRAR", command=self._do_login, height=50,
                                        fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
+                                       border_width=1, border_color=ACCENT2,
                                        font=self._font_btn, corner_radius=10, cursor="hand2")
         self.btn_login.pack(fill="x", pady=(0, 8))
 
-        link_register = ctk.CTkLabel(inner, text="Não tem conta?  Criar conta", text_color=ACCENT,
+        link_register = ctk.CTkLabel(inner, text="Não tem conta?  Criar conta", text_color=ACCENT2,
                                      font=self._font_small, cursor="hand2")
         link_register.pack()
         link_register.bind("<Button-1>", lambda e: self._show_register())
@@ -720,10 +721,11 @@ class App(ctk.CTk):
         self.chk_show.pack(fill="x", pady=(0, 14))
         self.btn_register = ctk.CTkButton(inner, text="CRIAR CONTA", command=self._do_register, height=50,
                                           fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
+                                          border_width=1, border_color=ACCENT2,
                                           font=self._font_btn, corner_radius=10, cursor="hand2")
         self.btn_register.pack(fill="x", pady=(0, 8))
 
-        back = ctk.CTkLabel(inner, text="Já tenho conta — voltar ao login", text_color=ACCENT,
+        back = ctk.CTkLabel(inner, text="Já tenho conta — voltar ao login", text_color=ACCENT2,
                             font=self._font_small, cursor="hand2")
         back.pack()
         back.bind("<Button-1>", lambda e: self._show_login())
@@ -795,7 +797,7 @@ class App(ctk.CTk):
         row = ctk.CTkFrame(self.server_dialog, fg_color=BG, corner_radius=0)
         row.pack(padx=16, pady=(0, 14), fill="x")
         ctk.CTkButton(row, text="Cancelar", command=self.server_dialog.withdraw, width=110,
-                      fg_color=PANEL2, hover_color=LINE, text_color=TEXT,
+                      fg_color=PANEL2, hover_color=BORDER, text_color=TEXT,
                       font=self._font_small, corner_radius=8).pack(side="left")
         ctk.CTkButton(row, text="Salvar e reconectar", command=self._save_server_dialog, width=160,
                       fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
@@ -821,7 +823,7 @@ class App(ctk.CTk):
         self.bg(self.api.me, self._me_done, self.instance)
 
     def _box(self, parent, **kw):
-        defaults = dict(fg_color=PANEL2, border_color=LINE, border_width=1, corner_radius=10)
+        defaults = dict(fg_color=PANEL2, border_color=BORDER, border_width=1, corner_radius=10)
         defaults.update(kw)
         return ctk.CTkFrame(parent, **defaults)
 
@@ -829,7 +831,7 @@ class App(ctk.CTk):
         self.portal = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
         self._head_bar(self.portal, right_builder=self._pill_builder)
 
-        card = ctk.CTkFrame(self.portal, fg_color=PANEL, corner_radius=18, border_width=1, border_color=LINE)
+        card = ctk.CTkFrame(self.portal, fg_color=PANEL, corner_radius=18, border_width=1, border_color=BORDER)
         card.pack(fill="both", expand=True, padx=20, pady=(16, 10))
         inner = ctk.CTkFrame(card, fg_color=PANEL, corner_radius=0)
         inner.pack(fill="both", expand=True, padx=20, pady=16)
@@ -846,7 +848,7 @@ class App(ctk.CTk):
                                          anchor="w", padx=14, pady=10)
         self.endpoint_lbl.pack(side="left", fill="x", expand=True)
         self.copy_btn = ctk.CTkButton(endpoint, text="Copiar", command=self._copy_endpoint,
-                                      fg_color="transparent", hover_color="#262043", text_color=ACCENT,
+                                      fg_color="transparent", hover_color="#123A55", text_color=ACCENT2,
                                       font=self._font_small, corner_radius=8, cursor="hand2", anchor="e", width=72)
         self.copy_btn.pack(side="right", padx=(0, 6), pady=6)
 
@@ -879,6 +881,7 @@ class App(ctk.CTk):
 
         self.btn_conn = ctk.CTkButton(inner, text="Conectar", command=self._toggle_connect, height=48,
                                       fg_color=ACCENT, hover_color=ACCENT_DARK, text_color="white",
+                                      border_width=1, border_color=ACCENT2,
                                       font=self._font_btn, corner_radius=10, cursor="hand2")
         self.btn_conn.pack(fill="x", pady=(0, 4))
         self.conn_err = ctk.CTkLabel(inner, text="", text_color=ERR, font=self._font_small,
@@ -901,11 +904,11 @@ class App(ctk.CTk):
                                         font=self._font_small, corner_radius=8, cursor="hand2")
         self.btn_logout.pack(side="left")
         self.change_btn = ctk.CTkButton(foot, text="Sincronizar", command=self._renew, width=120, height=38,
-                                        fg_color=PANEL2, hover_color=LINE, text_color=TEXT,
+                                        fg_color=PANEL2, hover_color=BORDER, text_color=TEXT,
                                         font=self._font_small, corner_radius=8, cursor="hand2")
         self.change_btn.pack(side="right")
         self.update_portal = self._add_update_label(self.portal)
-        ctk.CTkLabel(self.portal, text=f"USB FIX v{VERSION}", text_color=SUBTLE,
+        ctk.CTkLabel(self.portal, text=f"USB FIX v{VERSION}", text_color=ACCENT2,
                      font=self._font_small).pack(side="bottom", pady=(0, 8))
 
     def _pill_builder(self, row):
