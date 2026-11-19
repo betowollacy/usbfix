@@ -66,10 +66,14 @@ def validate_binary(binary):
                 f"O novo executável não passou no teste de inicialização "
                 f"(código {result.returncode}). {detail}"
             )
+        # O bootloader onefile ainda pode estar removendo a pasta _MEI quando o
+        # subprocesso retorna. Aguardar evita sobrepor a extração do relançamento.
+        time.sleep(1.0)
         return True
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("O teste do novo executável excedeu 60 segundos.") from exc
     finally:
+        time.sleep(0.5)
         try:
             test_exe.unlink(missing_ok=True)
         except Exception:
@@ -182,16 +186,20 @@ def prepare_relaunch(new_file):
         "set /a tries=0\r\n"
         ":wait\r\n"
         "tasklist /FI \"IMAGENAME eq %s\" 2>nul | findstr /I \"%s\" >nul\r\n"
-        "if errorlevel 1 goto replace\r\n"
+        "if errorlevel 1 goto replaced\r\n"
         "set /a tries+=1\r\n"
-        "if %%tries%% gtr 30 goto failed\r\n"
+        "if %%tries%% gtr 60 goto failed\r\n"
         "timeout /t 1 /nobreak >nul\r\n"
         "goto wait\r\n"
-        ":replace\r\n"
+        ":replaced\r\n"
+        "rem Dar tempo ao bootloader onefile para liberar a pasta _MEI antiga.\r\n"
+        "timeout /t 2 /nobreak >nul\r\n"
+        "if not exist \"%s\" goto failed\r\n"
         "if exist \"%s\" del /q \"%s\"\r\n"
         "if exist \"%s\" move /Y \"%s\" \"%s\" >nul\r\n"
         "move /Y \"%s\" \"%s\" >nul 2>&1\r\n"
         "if errorlevel 1 goto rollback\r\n"
+        "timeout /t 1 /nobreak >nul\r\n"
         "start \"\" \"%%~dp0%s\"\r\n"
         "start \"\" /b cmd /c \"timeout /t 5 /nobreak >nul & del /q \\\"_update_usbfix.bat\\\"\"\r\n"
         "exit /b 0\r\n"
@@ -200,8 +208,8 @@ def prepare_relaunch(new_file):
         "start \"\" \"%%~dp0%s\"\r\n"
         ":failed\r\n"
         "exit /b 1\r\n"
-    ) % (name, name, backup.name, backup.name, name, name, backup.name, new_file.name, name,
-         name, backup.name, backup.name, name, name)
+    ) % (name, name, new_file.name, backup.name, backup.name, name, name,
+         backup.name, new_file.name, name, name, backup.name, backup.name, name, name)
     bat.write_text(body, encoding="ascii")
     subprocess.Popen(
         ["cmd", "/c", str(bat)],
