@@ -1,30 +1,36 @@
-"""Tema visual do USB FIX (dark tech).
+"""Tema visual do USB FIX (dark tech reforçado).
 
 Centraliza cores, fontes e pequenos helpers para manter a interface
 consistente entre login, portal, splash e atualização.
+
+Paleta: preto profundo + ciano elétrico + violeta + toque magenta.
 """
 
 import customtkinter as ctk
 
-# Superfícies
-BG = "#070B14"
-BG_ELEV = "#0B1120"
-PANEL = "#0F192C"
-PANEL2 = "#16233B"
-HEADER_BG = "#0A1020"
-LINE = "#23314C"
-LINE_SOFT = "#1A2740"
+# Superfícies — preto profundo com camadas azuis
+BG = "#02050C"
+BG_ELEV = "#060C18"
+PANEL = "#091320"
+PANEL2 = "#0F1D31"
+HEADER_BG = "#050A14"
+LINE = "#1C3B5E"
+LINE_SOFT = "#122640"
+
+# Bordas com brilho (usadas nos cards e campos)
+BORDER = "#1D5A86"
+BORDER_SOFT = "#143A5C"
 
 # Acentos
-ACCENT = "#6C7BFF"
-ACCENT_DARK = "#5364E8"
-ACCENT2 = "#22D3EE"
-GLOW = "#7C3AED"
+ACCENT = "#8358FF"       # violeta elétrico — botões e checkboxes (texto branco)
+ACCENT_DARK = "#6D3FE0"
+ACCENT2 = "#00E5FF"      # ciano elétrico — texto, ícones, barras e destaques
+GLOW = "#FF4FD8"         # magenta — fecha o gradiente
 
 # Texto e estados
-TEXT = "#F8FAFC"
-MUTED = "#9AA8C2"
-SUBTLE = "#64748B"
+TEXT = "#F0F9FF"
+MUTED = "#93A9C4"
+SUBTLE = "#607899"
 OK = "#34D399"
 ERR = "#FB7185"
 WARN = "#FBBF24"
@@ -49,8 +55,8 @@ def fonts():
     }
 
 
-def gradient_strip(parent, height=3, colors=(ACCENT2, ACCENT, GLOW)):
-    """Faixa horizontal com gradiente suave (substitui a linha sólida)."""
+def gradient_strip(parent, height=5, colors=(ACCENT2, ACCENT, GLOW)):
+    """Faixa horizontal com gradiente ciano -> violeta -> magenta."""
     import tkinter as tk
 
     canvas = tk.Canvas(parent, height=height, highlightthickness=0, bd=0)
