@@ -2,6 +2,14 @@
 setlocal
 cd /d "%~dp0"
 
+echo [%date% %time%] === Validar imports do aplicativo ===
+python -c "import app.gui; print('app.gui importado com sucesso')"
+if errorlevel 1 (
+    echo ERRO: o modulo app.gui nao pode ser importado no ambiente de build.
+    goto :erro
+)
+
+echo.
 echo [%date% %time%] === Rebuild USB-Fix.exe ===
 python -u -m PyInstaller --noconfirm --clean --log-level=INFO USB-Fix.spec
 if errorlevel 1 goto :erro
