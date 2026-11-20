@@ -1,39 +1,37 @@
-"""Tema visual do USB FIX (dark tech reforçado).
+"""Tema visual premium do USB FIX.
 
-Centraliza cores, fontes e pequenos helpers para manter a interface
-consistente entre login, portal, splash e atualização.
-
-Paleta: preto profundo + ciano elétrico + violeta + toque magenta.
+Paleta: azul-marinho profundo, azul tecnológico e detalhes ciano/âmbar.
+Mantém os mesmos nomes de constantes para não alterar a lógica dos componentes.
 """
 
 import customtkinter as ctk
 
-# Superfícies — preto profundo com camadas azuis
-BG = "#02050C"
-BG_ELEV = "#060C18"
-PANEL = "#091320"
-PANEL2 = "#0F1D31"
-HEADER_BG = "#050A14"
-LINE = "#1C3B5E"
-LINE_SOFT = "#122640"
+# Superfícies — azul-marinho profundo
+BG = "#070D18"
+BG_ELEV = "#0B1422"
+PANEL = "#101B2C"
+PANEL2 = "#17263A"
+HEADER_BG = "#0A1321"
+LINE = "#29415E"
+LINE_SOFT = "#1B3049"
 
-# Bordas com brilho (usadas nos cards e campos)
-BORDER = "#1D5A86"
-BORDER_SOFT = "#143A5C"
+# Bordas discretas
+BORDER = "#294966"
+BORDER_SOFT = "#203A55"
 
-# Acentos
-ACCENT = "#8358FF"       # violeta elétrico — botões e checkboxes (texto branco)
-ACCENT_DARK = "#6D3FE0"
-ACCENT2 = "#00E5FF"      # ciano elétrico — texto, ícones, barras e destaques
-GLOW = "#FF4FD8"         # magenta — fecha o gradiente
+# Acentos — azul como cor principal, ciano para informação e âmbar em detalhes
+ACCENT = "#2478E8"
+ACCENT_DARK = "#185DBB"
+ACCENT2 = "#42C7E8"
+GLOW = "#F2A84B"
 
 # Texto e estados
-TEXT = "#F0F9FF"
-MUTED = "#93A9C4"
-SUBTLE = "#607899"
-OK = "#34D399"
-ERR = "#FB7185"
-WARN = "#FBBF24"
+TEXT = "#F4F7FB"
+MUTED = "#A8B8CC"
+SUBTLE = "#71849D"
+OK = "#35C995"
+ERR = "#F07178"
+WARN = "#F2B85B"
 
 # Tipografia
 FONT = "Segoe UI"
@@ -43,20 +41,20 @@ MONO = "Cascadia Mono"
 def fonts():
     """Fonte usada pela aplicação (criada aqui para evitar duplicação)."""
     return {
-        "title": ctk.CTkFont(family=FONT, size=24, weight="bold"),
-        "h1": ctk.CTkFont(family=FONT, size=20, weight="bold"),
+        "title": ctk.CTkFont(family=FONT, size=25, weight="bold"),
+        "h1": ctk.CTkFont(family=FONT, size=21, weight="bold"),
         "h2": ctk.CTkFont(family=FONT, size=14, weight="bold"),
         "body": ctk.CTkFont(family=FONT, size=12),
-        "small": ctk.CTkFont(family=FONT, size=10),
+        "small": ctk.CTkFont(family=FONT, size=11),
         "tiny": ctk.CTkFont(family=FONT, size=9, weight="bold"),
         "btn": ctk.CTkFont(family=FONT, size=12, weight="bold"),
         "mono": ctk.CTkFont(family=MONO, size=12),
-        "percent": ctk.CTkFont(family=FONT, size=22, weight="bold"),
+        "percent": ctk.CTkFont(family=FONT, size=23, weight="bold"),
     }
 
 
-def gradient_strip(parent, height=5, colors=(ACCENT2, ACCENT, GLOW)):
-    """Faixa horizontal com gradiente ciano -> violeta -> magenta."""
+def gradient_strip(parent, height=4, colors=(ACCENT, ACCENT2, GLOW)):
+    """Faixa de destaque azul → ciano → âmbar, sem brilho excessivo."""
     import tkinter as tk
 
     canvas = tk.Canvas(parent, height=height, highlightthickness=0, bd=0)
@@ -73,7 +71,9 @@ def gradient_strip(parent, height=5, colors=(ACCENT2, ACCENT, GLOW)):
             t = pos - i
             a = tuple(int(colors[i][j:j + 2], 16) for j in (1, 3, 5))
             b = tuple(int(colors[i + 1][j:j + 2], 16) for j in (1, 3, 5))
-            color = "#" + "".join(f"{round(a[k] + (b[k] - a[k]) * t):02x}" for k in range(3))
+            color = "#" + "".join(
+                f"{round(a[k] + (b[k] - a[k]) * t):02x}" for k in range(3)
+            )
             canvas.create_line(x, 0, x, height, fill=color, tags="grad")
 
     canvas.bind("<Configure>", redraw)
