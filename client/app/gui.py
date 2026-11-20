@@ -51,10 +51,10 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("USB FIX")
-        w, h = 390, 620
+        w, h = 440, 700
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         self.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2 - 20}")
-        self.minsize(370, 590)
+        self.minsize(420, 660)
         self.withdraw()
         self.configure(fg_color=BG)
         self.api = Api(self._read_server())
@@ -670,8 +670,8 @@ class App(ctk.CTk):
         return frame
 
     def _model_input(self, parent, icon, placeholder, show=None):
-        box = ctk.CTkFrame(parent, fg_color=PANEL2, corner_radius=8, border_width=1,
-                           border_color=BORDER, height=44)
+        box = ctk.CTkFrame(parent, fg_color=PANEL2, corner_radius=11, border_width=1,
+                           border_color=BORDER, height=48)
         box.pack_propagate(False)
         box.pack(fill="x", pady=(0, 6))
         ctk.CTkLabel(box, text=icon, text_color=MUTED, font=("Segoe UI Symbol", 14),
@@ -702,7 +702,7 @@ class App(ctk.CTk):
     def _build_login(self):
         self.login = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
         self._head_bar(self.login)
-        _, inner = self._center_card(self.login, 326, 430, pad_top=54)
+        _, inner = self._center_card(self.login, 360, 430, pad_top=48)
         self._model_avatar(inner).pack(pady=(0, 4))
         ctk.CTkLabel(inner, text="ACESSO SEGURO", text_color=ACCENT2,
                      font=self._font_tiny).pack()
@@ -710,7 +710,7 @@ class App(ctk.CTk):
                      font=self._font_h1).pack(pady=(2, 12))
 
         self.login_err = ctk.CTkLabel(inner, text="", text_color=ERR, font=self._font_small,
-                                      wraplength=274, justify="left", height=18)
+                                      wraplength=308, justify="left", height=18)
         self.login_err.pack(fill="x", pady=(0, 2))
 
         self.user_entry = self._model_input(inner, "♟", "Usuário")
@@ -747,7 +747,7 @@ class App(ctk.CTk):
     def _build_register(self):
         self.register = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
         self._head_bar(self.register)
-        _, inner = self._center_card(self.register, 326, 390, pad_top=44)
+        _, inner = self._center_card(self.register, 360, 400, pad_top=38)
 
         self.reg_err = ctk.CTkLabel(inner, text="", text_color=ERR, font=self._font_small,
                                     wraplength=274, justify="left", height=18)
