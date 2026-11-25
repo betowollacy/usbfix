@@ -1,0 +1,47 @@
+name: Limpar artifacts do Actions
+
+on:
+  workflow_dispatch:
+    inputs:
+      dias:
+        description: "Excluir artifacts mais antigos que X dias (0 = todos)"
+        required: false
+        default: "0"
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  limpar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Excluir artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const dias = parseInt('${{ inputs.dias }}' || '0', 10);
+            const limite = Date.now() - dias * 24 * 60 * 60 * 1000;
+            const artifacts = await github.paginate(
+              github.rest.actions.listArtifactsForRepo,
+              { owner: context.repo.owner, repo: context.repo.repo, per_page: 100 }
+            );
+
+            core.info(`Artifacts encontrados: ${artifacts.length}`);
+            let removidos = 0;
+            let bytes = 0;
+
+            for (const artifact of artifacts) {
+              if (dias > 0 && new Date(artifact.created_at).getTime() > limite) continue;
+              await github.rest.actions.deleteArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id,
+              });
+              core.info(`Excluido: ${artifact.name} (${artifact.id}) - ${(artifact.size_in_bytes / 1048576).toFixed(1)} MB`);
+              removidos++;
+              bytes += artifact.size_in_bytes;
+            }
+
+            core.info(`Concluido: ${removidos} artifacts excluidos, ${(bytes / 1048576).toFixed(1)} MB liberados.`);
+            core.notice("O GitHub pode levar 6-12h para recalcular a cota de storage.");
