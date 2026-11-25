@@ -94,12 +94,21 @@ jobs:
           [System.IO.File]::WriteAllText($keyPath, $env:VPS_KEY.Trim() + "`n")
           & icacls $keyPath /inheritance:r /grant:r "$($env:USERNAME):F" | Out-Null
 
+          # O OpenSSH do runner Windows nao negocia sntrup761x25519-sha512,
+          # oferecido pelo Ubuntu da VPS. Forca curve25519-sha256, aceito pelos dois.
           $knownHosts = Join-Path $env:USERPROFILE ".ssh\known_hosts"
           New-Item -ItemType Directory -Force -Path (Split-Path $knownHosts) | Out-Null
-          & ssh-keyscan -p $env:VPS_PORT -H $env:VPS_HOST | Add-Content -Path $knownHosts
+          $knownHostsOpt = ($knownHosts -replace '\\', '/')
+
+          $sshOpts = @(
+            "-o", "KexAlgorithms=curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group14-sha256",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", "UserKnownHostsFile=$knownHostsOpt",
+            "-o", "BatchMode=yes"
+          )
 
           function Invoke-Remote([string]$Command) {
-            $output = & ssh -i $keyPath -p $env:VPS_PORT -o BatchMode=yes "${env:VPS_USER}@${env:VPS_HOST}" $Command
+            $output = & ssh -i $keyPath -p $env:VPS_PORT @sshOpts "${env:VPS_USER}@${env:VPS_HOST}" $Command
             $code = $LASTEXITCODE
             if ($code -ne 0) { throw "SSH falhou ($code): $Command" }
             return ($output -join "`n")
@@ -113,11 +122,11 @@ jobs:
           $installerTmp = "$remoteDir/Instalar-USB-FIX.exe.upload-$env:RUN_ID"
           $versionTmp = "$remoteDir/version.txt.upload-$env:RUN_ID"
 
-          & scp -i $keyPath -P $env:VPS_PORT "client/dist/USB-Fix.exe" "${env:VPS_USER}@${env:VPS_HOST}:$appTmp"
+          & scp -i $keyPath -P $env:VPS_PORT @sshOpts "client/dist/USB-Fix.exe" "${env:VPS_USER}@${env:VPS_HOST}:$appTmp"
           if ($LASTEXITCODE -ne 0) { throw "Falha no scp do USB-Fix.exe" }
-          & scp -i $keyPath -P $env:VPS_PORT "client/dist/Instalar USB FIX.exe" "${env:VPS_USER}@${env:VPS_HOST}:$installerTmp"
+          & scp -i $keyPath -P $env:VPS_PORT @sshOpts "client/dist/Instalar USB FIX.exe" "${env:VPS_USER}@${env:VPS_HOST}:$installerTmp"
           if ($LASTEXITCODE -ne 0) { throw "Falha no scp do instalador" }
-          & scp -i $keyPath -P $env:VPS_PORT "server/version.txt" "${env:VPS_USER}@${env:VPS_HOST}:$versionTmp"
+          & scp -i $keyPath -P $env:VPS_PORT @sshOpts "server/version.txt" "${env:VPS_USER}@${env:VPS_HOST}:$versionTmp"
           if ($LASTEXITCODE -ne 0) { throw "Falha no scp de version.txt" }
 
           Invoke-Remote "mv -f -- '$appTmp' '$remoteDir/USB-Fix.exe' && mv -f -- '$installerTmp' '$remoteDir/Instalar USB FIX.exe' && cat '$versionTmp' > '$versionFile' && rm -f -- '$versionTmp'"
