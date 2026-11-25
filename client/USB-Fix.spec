@@ -11,6 +11,7 @@ if PROJECT_ROOT not in sys.path:
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 ctk_datas, ctk_binaries, ctk_hiddenimports = collect_all("customtkinter")
+certifi_datas, certifi_binaries, certifi_hiddenimports = collect_all("certifi")
 
 app_hiddenimports = [
     "app.config",
@@ -19,6 +20,7 @@ app_hiddenimports = [
     "app.logo",
     "app.redirector",
     "app.api",
+    "app.ssl_context",
     "app.tunnel",
     "app.updater",
 ]
@@ -30,12 +32,13 @@ if "app.gui" not in app_modules:
 a = Analysis(
     ["main.py"],
     pathex=[PROJECT_ROOT],
-    binaries=ctk_binaries,
-    datas=[("frpc.exe", ".")] + ctk_datas,
+    binaries=ctk_binaries + certifi_binaries,
+    datas=[("frpc.exe", ".")] + ctk_datas + certifi_datas,
     hiddenimports=sorted(set(
         app_modules
         + app_hiddenimports
         + ctk_hiddenimports
+        + certifi_hiddenimports
     )),
     hookspath=[],
     hooksconfig={},
