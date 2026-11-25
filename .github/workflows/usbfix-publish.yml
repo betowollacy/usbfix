@@ -17,11 +17,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-and-publish:
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
-      - name: Baixar código
+      - name: Baixar cÃ³digo
         uses: actions/checkout@v4
 
       - name: Preparar Python
@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Instalar dependências do aplicativo e ferramentas de build
+      - name: Instalar dependÃªncias do aplicativo e ferramentas de build
         working-directory: client
         run: |
           python -m pip install --upgrade pip
@@ -56,74 +56,87 @@ jobs:
             if (!(Test-Path $file)) { throw "Arquivo de build ausente: $file" }
           }
 
-      - name: Publicar artefatos do build
-        uses: actions/upload-artifact@v4
-        with:
-          name: usbfix-windows-downloads
-          path: |
-            client/dist/USB-Fix.exe
-            client/dist/Instalar USB FIX.exe
-          if-no-files-found: error
-          retention-days: 7
-
-  deploy-downloads:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Baixar código para obter a versão do servidor
-        uses: actions/checkout@v4
-
-      - name: Baixar artefatos
-        uses: actions/download-artifact@v4
-        with:
-          name: usbfix-windows-downloads
-          path: dist
+      # Esta VPS tambem hospeda o site servicetool.
+      # Este job mexe SOMENTE em /opt/tunnel/server/... (USB FIX).
+      # Sem artifact: os .exe vao direto daqui para a VPS via SCP.
 
       - name: Validar credenciais exclusivas do USB FIX
+        shell: pwsh
         env:
           VPS_HOST: ${{ secrets.USBFIX_HOST }}
           VPS_USER: ${{ secrets.USBFIX_USER }}
           VPS_PORT: ${{ secrets.USBFIX_PORT }}
           VPS_KEY: ${{ secrets.USBFIX_SSH_KEY }}
         run: |
-          test -n "$VPS_HOST" || { echo "::error::Configure o secret USBFIX_HOST"; exit 1; }
-          test -n "$VPS_USER" || { echo "::error::Configure o secret USBFIX_USER"; exit 1; }
-          test -n "$VPS_PORT" || { echo "::error::Configure o secret USBFIX_PORT"; exit 1; }
-          test -n "$VPS_KEY" || { echo "::error::Configure o secret USBFIX_SSH_KEY"; exit 1; }
-
-      - name: Configurar SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.USBFIX_SSH_KEY }}
+          foreach ($pair in @(
+            @{ Name = "VPS_HOST"; Secret = "USBFIX_HOST" },
+            @{ Name = "VPS_USER"; Secret = "USBFIX_USER" },
+            @{ Name = "VPS_PORT"; Secret = "USBFIX_PORT" },
+            @{ Name = "VPS_KEY";  Secret = "USBFIX_SSH_KEY" }
+          )) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($pair.Name))) {
+              throw "Configure o secret $($pair.Secret)"
+            }
+          }
 
       - name: Enviar somente os downloads do USB FIX
+        shell: pwsh
         env:
           VPS_HOST: ${{ secrets.USBFIX_HOST }}
           VPS_USER: ${{ secrets.USBFIX_USER }}
           VPS_PORT: ${{ secrets.USBFIX_PORT }}
+          VPS_KEY: ${{ secrets.USBFIX_SSH_KEY }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          set -euo pipefail
-          mkdir -p ~/.ssh
-          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
-          remote_dir="/opt/tunnel/server/site/downloads"
-          version_file="/opt/tunnel/server/version.txt"
-          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "test -d '$remote_dir' && test -w '$remote_dir' && test -f '$version_file' && test -w '$version_file'"
-          remote_app_tmp="$remote_dir/USB-Fix.exe.upload-$RUN_ID"
-          remote_installer_tmp="$remote_dir/Instalar-USB-FIX.exe.upload-$RUN_ID"
-          remote_version_tmp="$remote_dir/version.txt.upload-$RUN_ID"
-          scp -P "$VPS_PORT" "dist/USB-Fix.exe" "$VPS_USER@$VPS_HOST:$remote_app_tmp"
-          scp -P "$VPS_PORT" "dist/Instalar USB FIX.exe" "$VPS_USER@$VPS_HOST:$remote_installer_tmp"
-          scp -P "$VPS_PORT" "server/version.txt" "$VPS_USER@$VPS_HOST:$remote_version_tmp"
-          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "mv -f -- '$remote_app_tmp' '$remote_dir/USB-Fix.exe' && mv -f -- '$remote_installer_tmp' '$remote_dir/Instalar USB FIX.exe' && cat '$remote_version_tmp' > '$version_file' && rm -f -- '$remote_version_tmp'"
-          local_app="$(sha256sum "dist/USB-Fix.exe" | cut -d' ' -f1)"
-          remote_app="$(ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "sha256sum '$remote_dir/USB-Fix.exe' | cut -d' ' -f1")"
-          local_installer="$(sha256sum "dist/Instalar USB FIX.exe" | cut -d' ' -f1)"
-          remote_installer="$(ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "sha256sum '$remote_dir/Instalar USB FIX.exe' | cut -d' ' -f1")"
-          test "$local_app" = "$remote_app"
-          test "$local_installer" = "$remote_installer"
-          echo "USB-Fix.exe: SHA-256 confirmado"
-          echo "Instalar USB FIX.exe: SHA-256 confirmado"
-          remote_version="$(ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "cat /opt/tunnel/server/version.txt")"
-          test "$remote_version" = "0.7.0"
-          echo "server/version.txt: 0.7.0 confirmado"
+          $ErrorActionPreference = "Stop"
+
+          $keyPath = Join-Path $env:RUNNER_TEMP "usbfix_id_rsa"
+          [System.IO.File]::WriteAllText($keyPath, $env:VPS_KEY.Trim() + "`n")
+          & icacls $keyPath /inheritance:r /grant:r "$($env:USERNAME):F" | Out-Null
+
+          $knownHosts = Join-Path $env:USERPROFILE ".ssh\known_hosts"
+          New-Item -ItemType Directory -Force -Path (Split-Path $knownHosts) | Out-Null
+          & ssh-keyscan -p $env:VPS_PORT -H $env:VPS_HOST | Add-Content -Path $knownHosts
+
+          function Invoke-Remote([string]$Command) {
+            $output = & ssh -i $keyPath -p $env:VPS_PORT -o BatchMode=yes "${env:VPS_USER}@${env:VPS_HOST}" $Command
+            $code = $LASTEXITCODE
+            if ($code -ne 0) { throw "SSH falhou ($code): $Command" }
+            return ($output -join "`n")
+          }
+
+          $remoteDir = "/opt/tunnel/server/site/downloads"
+          $versionFile = "/opt/tunnel/server/version.txt"
+          Invoke-Remote "test -d '$remoteDir' && test -w '$remoteDir' && test -f '$versionFile' && test -w '$versionFile'"
+
+          $appTmp = "$remoteDir/USB-Fix.exe.upload-$env:RUN_ID"
+          $installerTmp = "$remoteDir/Instalar-USB-FIX.exe.upload-$env:RUN_ID"
+          $versionTmp = "$remoteDir/version.txt.upload-$env:RUN_ID"
+
+          & scp -i $keyPath -P $env:VPS_PORT "client/dist/USB-Fix.exe" "${env:VPS_USER}@${env:VPS_HOST}:$appTmp"
+          if ($LASTEXITCODE -ne 0) { throw "Falha no scp do USB-Fix.exe" }
+          & scp -i $keyPath -P $env:VPS_PORT "client/dist/Instalar USB FIX.exe" "${env:VPS_USER}@${env:VPS_HOST}:$installerTmp"
+          if ($LASTEXITCODE -ne 0) { throw "Falha no scp do instalador" }
+          & scp -i $keyPath -P $env:VPS_PORT "server/version.txt" "${env:VPS_USER}@${env:VPS_HOST}:$versionTmp"
+          if ($LASTEXITCODE -ne 0) { throw "Falha no scp de version.txt" }
+
+          Invoke-Remote "mv -f -- '$appTmp' '$remoteDir/USB-Fix.exe' && mv -f -- '$installerTmp' '$remoteDir/Instalar USB FIX.exe' && cat '$versionTmp' > '$versionFile' && rm -f -- '$versionTmp'"
+
+          $localApp = (Get-FileHash -Algorithm SHA256 "client/dist/USB-Fix.exe").Hash.ToLowerInvariant()
+          $remoteApp = Invoke-Remote "sha256sum '$remoteDir/USB-Fix.exe' | cut -d' ' -f1"
+          if ($localApp -ne $remoteApp.Trim().ToLowerInvariant()) { throw "SHA-256 divergente: USB-Fix.exe" }
+
+          $localInstaller = (Get-FileHash -Algorithm SHA256 "client/dist/Instalar USB FIX.exe").Hash.ToLowerInvariant()
+          $remoteInstaller = Invoke-Remote "sha256sum '$remoteDir/Instalar USB FIX.exe' | cut -d' ' -f1"
+          if ($localInstaller -ne $remoteInstaller.Trim().ToLowerInvariant()) { throw "SHA-256 divergente: instalador" }
+
+          $expectedVersion = (Get-Content -Raw "server/version.txt").Trim()
+          $remoteVersion = Invoke-Remote "cat $versionFile"
+          if ($remoteVersion.Trim() -ne $expectedVersion) {
+            throw "Versao divergente: '$($remoteVersion.Trim())' != '$expectedVersion'"
+          }
+
+          Write-Host "USB-Fix.exe: SHA-256 confirmado"
+          Write-Host "Instalar USB FIX.exe: SHA-256 confirmado"
+          Write-Host "server/version.txt: $expectedVersion confirmado"
+          Write-Host "Publicacao concluida (somente /opt/tunnel - servicetool intacto)."
