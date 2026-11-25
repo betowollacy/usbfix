@@ -8,6 +8,7 @@ import urllib.request
 from pathlib import Path
 
 from .config import VERSION
+from .ssl_context import create_ssl_context
 
 
 def parse_version(text):
@@ -121,7 +122,9 @@ def download(url, dest, progress=None, stage=None, sha256=None, retries=3):
             req = urllib.request.Request(
                 url, method="GET", headers={"User-Agent": "USB FIX updater"}
             )
-            with urllib.request.urlopen(req, timeout=60) as resp:
+            with urllib.request.urlopen(
+                req, timeout=60, context=create_ssl_context()
+            ) as resp:
                 total = int(resp.headers.get("Content-Length") or 0)
                 done = 0
                 started = time.monotonic()

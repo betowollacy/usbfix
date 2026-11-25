@@ -3,6 +3,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from .ssl_context import create_ssl_context
+
 
 class ApiError(Exception):
     def __init__(self, message, status=None):
@@ -28,7 +30,9 @@ class Api:
             data = json.dumps(body).encode()
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
+            with urllib.request.urlopen(
+                req, timeout=20, context=create_ssl_context()
+            ) as resp:
                 raw = resp.read()
                 return json.loads(raw) if raw else None
         except urllib.error.HTTPError as exc:
