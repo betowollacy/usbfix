@@ -1,0 +1,44 @@
+ name: Diagnostico VPS (somente leitura)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inventario:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Coletar uso de disco e servicos (sem alterar nada)
+        env:
+          VPS_HOST: ${{ secrets.USBFIX_HOST }}
+          VPS_USER: ${{ secrets.USBFIX_USER }}
+          VPS_PORT: ${{ secrets.USBFIX_PORT }}
+          VPS_KEY: ${{ secrets.USBFIX_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -p "$VPS_PORT" -i ~/.ssh/id_rsa "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
+          echo "=== DATA ==="
+          date
+          echo "=== DISCO ==="
+          df -h
+          echo "=== DIRETORIOS PRINCIPAIS ==="
+          ls -la /opt /var/www /srv /home 2>/dev/null || true
+          echo "=== MAIORES PASTAS EM /opt ==="
+          du -h --max-depth=3 /opt 2>/dev/null | sort -h | tail -40
+          echo "=== MAIORES PASTAS EM /var ==="
+          du -h --max-depth=3 /var 2>/dev/null | sort -h | tail -40
+          echo "=== JOURNALD ==="
+          journalctl --disk-usage 2>/dev/null || true
+          echo "=== SERVICOS ATIVOS ==="
+          systemctl list-units --type=service --state=running --no-pager 2>/dev/null | head -60
+          echo "=== DOCKER ==="
+          docker system df 2>/dev/null || true
+          echo "=== FIM DO INVENTARIO ==="
+          REMOTE
